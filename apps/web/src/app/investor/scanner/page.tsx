@@ -317,7 +317,7 @@ export default function ScannerPage() {
                 </div>
                 <h3 className="font-semibold text-foreground mb-1">Ready to Analyze</h3>
                 <p className="text-sm text-muted-foreground max-w-xs">
-                  Enter content on the left and click "Scan Content" to see detailed risk
+                  Enter content on the left and click &quot;Scan Content&quot; to see detailed risk
                   analysis and explanations.
                 </p>
               </motion.div>

@@ -56,7 +56,7 @@ export default function InvestorDashboard() {
               Welcome back, Investor
             </h1>
             <p className="text-white/80">
-              You've scanned <span className="font-semibold text-white">18 items</span> this month.
+              You&apos;ve scanned <span className="font-semibold text-white">18 items</span> this month.
               Stay alert, stay protected.
             </p>
           </div>

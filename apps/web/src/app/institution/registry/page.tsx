@@ -144,7 +144,7 @@ export default function RegistryPage() {
             <div>
               <div className="font-semibold text-foreground">All notices verified & signed</div>
               <div className="text-sm text-muted-foreground">
-                Your institution's communications are cryptographically protected against tampering.
+                Your institution&apos;s communications are cryptographically protected against tampering.
               </div>
             </div>
           </div>

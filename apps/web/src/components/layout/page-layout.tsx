@@ -32,7 +32,7 @@ export function Container({
   );
 }
 
-interface SectionProps extends React.HTMLAttributes<HTMLSectionElement> {
+interface SectionProps extends React.HTMLAttributes<HTMLElement> {
   variant?: 'default' | 'muted' | 'dark';
   padding?: 'none' | 'sm' | 'md' | 'lg' | 'xl';
 }

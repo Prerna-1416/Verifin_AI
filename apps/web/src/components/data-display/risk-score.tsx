@@ -2,7 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import type { RiskLevel } from '@/lib/constants';
+import type { RiskLevel } from '@/types';
 
 interface RiskScoreProps {
   score: number;

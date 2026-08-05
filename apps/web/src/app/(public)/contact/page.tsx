@@ -71,7 +71,7 @@ export default function ContactPage() {
               className="text-lg text-muted-foreground max-w-2xl mx-auto"
             >
               Have a question about VeriFin AI, want to report a threat, or interested in
-              partnering with us? We'd love to hear from you.
+              partnering with us? We&apos;d love to hear from you.
             </motion.p>
           </div>
 

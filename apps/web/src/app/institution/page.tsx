@@ -205,7 +205,7 @@ export default function InstitutionDashboard() {
                 <div>
                   <div className="font-semibold text-foreground text-sm">98.7% Verification Success</div>
                   <div className="text-xs text-muted-foreground mt-0.5">
-                    Your institution's QR codes are being verified successfully by investors.
+                    Your institution&apos;s QR codes are being verified successfully by investors.
                   </div>
                 </div>
               </div>

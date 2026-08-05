@@ -179,7 +179,7 @@ export default function VerifyPage() {
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle2 className="w-4 h-4 text-success-500 shrink-0 mt-0.5" />
-                We verify against the institution's registered public key
+                We verify against the institution&apos;s registered public key
               </li>
             </ul>
           </div>

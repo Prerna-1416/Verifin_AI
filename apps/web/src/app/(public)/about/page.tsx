@@ -51,7 +51,7 @@ export default function AboutPage() {
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
             VeriFin AI was born from a simple observation: as financial scams become more
-            sophisticated, the tools to detect them haven't kept up. We're changing that
+            sophisticated, the tools to detect them haven&apos;t kept up. We&apos;re changing that
             with AI that protects everyday investors.
           </p>
         </Container>

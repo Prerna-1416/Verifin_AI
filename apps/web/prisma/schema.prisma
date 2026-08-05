@@ -9,35 +9,33 @@ datasource db {
 
 model User {
   id            String    @id @default(auto()) @map("_id") @db.ObjectId
-  email         String    @unique @db.String
-  passwordHash  String    @db.String
-  name          String?   @db.String
-  role          Role      @default(INVESTOR) @db.String
-  avatarUrl     String?   @db.String
-  isVerified    Boolean   @default(false) @db.Boolean
-  createdAt     DateTime  @default(now()) @db.DateTime
-  updatedAt     DateTime  @updatedAt @db.DateTime
+  email         String    @unique
+  passwordHash  String   
+  name          String?  
+  role          Role      @default(INVESTOR)
+  avatarUrl     String?  
+  isVerified    Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   scans         Scan[]    @relation("UserScans")
-  institutions  Institution[] @relation("InstitutionMembers")
+  memberships   InstitutionMember[] @relation("InstitutionMembers")
   ownedOrgs     Institution[] @relation("InstitutionOwner")
   reports       Report[]  @relation("UserReports")
   sessions      Session[] @relation("UserSessions")
   auditLogs     AuditLog[] @relation("UserAuditLogs")
 
-  @@index([email])
   @@index([role])
 }
 
 model Session {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   userId    String   @db.ObjectId
-  token     String   @unique @db.String
-  expiresAt DateTime @db.DateTime
+  token     String   @unique
+  expiresAt DateTime
   user      User     @relation("UserSessions", fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  @@index([token])
   @@index([expiresAt])
 }
 
@@ -50,39 +48,53 @@ enum Role {
 
 model Institution {
   id              String    @id @default(auto()) @map("_id") @db.ObjectId
-  name            String    @db.String
-  registrationNo  String    @unique @db.String
-  logoUrl         String?   @db.String
-  website         String?   @db.String
-  publicKey       String    @db.String
-  privateKeyHash  String    @db.String
-  isVerified      Boolean   @default(false) @db.Boolean
+  name            String   
+  registrationNo  String    @unique
+  logoUrl         String?  
+  website         String?  
+  publicKey       String   
+  privateKeyHash  String   
+  isVerified      Boolean   @default(false)
   ownerId         String    @db.ObjectId
-  createdAt       DateTime  @default(now()) @db.DateTime
-  updatedAt       DateTime  @updatedAt @db.DateTime
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   owner           User      @relation("InstitutionOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  members         User[]    @relation("InstitutionMembers")
+  members       InstitutionMember[] @relation("InstitutionMembers")
   notices         Notice[]  @relation("InstitutionNotices")
   qrCodes         QRCode[]  @relation("InstitutionQRCodes")
 
   @@index([ownerId])
-  @@index([registrationNo])
   @@index([isVerified])
+}
+
+model InstitutionMember {
+  id            String      @id @default(auto()) @map("_id") @db.ObjectId
+  userId        String      @db.ObjectId
+  institutionId String      @db.ObjectId
+  role          String      @default("MEMBER")
+  joinedAt      DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  user          User        @relation("InstitutionMembers", fields: [userId], references: [id], onDelete: Cascade)
+  institution   Institution @relation("InstitutionMembers", fields: [institutionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, institutionId])
+  @@index([institutionId])
 }
 
 model Notice {
   id              String        @id @default(auto()) @map("_id") @db.ObjectId
   institutionId   String        @db.ObjectId
-  title           String        @db.String
-  content         String        @db.String
-  documentUrl     String?       @db.String
-  signature       String        @db.String
-  signedBy        String        @db.String
-  signedAt        DateTime      @db.DateTime
-  status          NoticeStatus  @default(ACTIVE) @db.String
-  expiresAt       DateTime?     @db.DateTime
-  createdAt       DateTime      @default(now()) @db.DateTime
+  title           String       
+  content         String       
+  documentUrl     String?      
+  signature       String       
+  signedBy        String       
+  signedAt        DateTime     
+  status          NoticeStatus  @default(ACTIVE)
+  expiresAt       DateTime?    
+  createdAt       DateTime      @default(now())
 
   institution     Institution   @relation("InstitutionNotices", fields: [institutionId], references: [id], onDelete: Cascade)
   qrCodes         QRCode[]      @relation("NoticeQRCodes")
@@ -102,11 +114,11 @@ model QRCode {
   id            String   @id @default(auto()) @map("_id") @db.ObjectId
   noticeId      String   @db.ObjectId
   institutionId String   @db.ObjectId
-  payload       String   @db.String
-  qrImageUrl    String   @db.String
-  scanCount     Int      @default(0) @db.Int
-  lastScannedAt DateTime? @db.DateTime
-  createdAt     DateTime @default(now()) @db.DateTime
+  payload       String  
+  qrImageUrl    String  
+  scanCount     Int      @default(0)
+  lastScannedAt DateTime?
+  createdAt     DateTime @default(now())
 
   notice        Notice   @relation("NoticeQRCodes", fields: [noticeId], references: [id], onDelete: Cascade)
   institution   Institution @relation("InstitutionQRCodes", fields: [institutionId], references: [id], onDelete: Cascade)
@@ -120,26 +132,26 @@ model Scan {
   id              String       @id @default(auto()) @map("_id") @db.ObjectId
   userId          String       @db.ObjectId
   qrCodeId        String?      @db.ObjectId
-  inputType       InputType    @db.String
-  inputContent    String       @db.String
-  fileUrl         String?      @db.String
-  fileName        String?      @db.String
-  fileSize        Int?         @db.Int
-  mimeType        String?      @db.String
+  inputType       InputType   
+  inputContent    String      
+  fileUrl         String?     
+  fileName        String?     
+  fileSize        Int?        
+  mimeType        String?     
 
-  riskScore       Float        @default(0) @db.Double
-  riskLevel       RiskLevel    @default(LOW) @db.String
-  detectors       Json         @db.Json
-  explanations    Json?        @db.Json
-  threats         String[]     @db.String
+  riskScore       Float        @default(0)
+  riskLevel       RiskLevel    @default(LOW)
+  detectors       Json        
+  explanations    Json?       
+  threats         String[]    
 
-  isVerified      Boolean      @default(false) @db.Boolean
-  verifiedAt      DateTime?    @db.DateTime
+  isVerified      Boolean      @default(false)
+  verifiedAt      DateTime?   
   matchedNoticeId String?      @db.ObjectId
 
-  status          ScanStatus   @default(PENDING) @db.String
-  completedAt     DateTime?    @db.DateTime
-  createdAt       DateTime     @default(now()) @db.DateTime
+  status          ScanStatus   @default(PENDING)
+  completedAt     DateTime?   
+  createdAt       DateTime     @default(now())
 
   user            User         @relation("UserScans", fields: [userId], references: [id], onDelete: Cascade)
   qrCode          QRCode?      @relation("QRCodeScans", fields: [qrCodeId], references: [id], onDelete: SetNull)
@@ -180,28 +192,27 @@ model Report {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
   scanId      String   @unique @db.ObjectId
   userId      String   @db.ObjectId
-  pdfUrl      String   @db.String
-  generatedAt DateTime @default(now()) @db.DateTime
+  pdfUrl      String  
+  generatedAt DateTime @default(now())
 
   scan        Scan     @relation("ScanReport", fields: [scanId], references: [id], onDelete: Cascade)
   user        User     @relation("UserReports", fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
-  @@index([scanId])
 }
 
 model ThreatFeed {
   id          String       @id @default(auto()) @map("_id") @db.ObjectId
-  title       String       @db.String
-  description String       @db.String
-  type        ThreatType   @db.String
-  severity    RiskLevel    @db.String
-  indicators  Json         @db.Json
-  source      String       @db.String
-  sourceUrl   String?      @db.String
-  isActive    Boolean      @default(true) @db.Boolean
-  publishedAt DateTime     @db.DateTime
-  createdAt   DateTime     @default(now()) @db.DateTime
+  title       String      
+  description String      
+  type        ThreatType  
+  severity    RiskLevel   
+  indicators  Json        
+  source      String      
+  sourceUrl   String?     
+  isActive    Boolean      @default(true)
+  publishedAt DateTime    
+  createdAt   DateTime     @default(now())
 
   @@index([type])
   @@index([severity])
@@ -222,11 +233,11 @@ enum ThreatType {
 model FlaggedContent {
   id          String      @id @default(auto()) @map("_id") @db.ObjectId
   scanId      String      @unique @db.ObjectId
-  reason      String      @db.String
+  reason      String     
   reviewedBy  String?     @db.ObjectId
-  reviewedAt  DateTime?   @db.DateTime
-  action      FlagAction  @default(PENDING) @db.String
-  createdAt   DateTime    @default(now()) @db.DateTime
+  reviewedAt  DateTime?  
+  action      FlagAction  @default(PENDING)
+  createdAt   DateTime    @default(now())
 
   scan        Scan        @relation("ScanFlaggedContent", fields: [scanId], references: [id], onDelete: Cascade)
 
@@ -244,13 +255,13 @@ enum FlagAction {
 model AuditLog {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   userId    String?  @db.ObjectId
-  action    String   @db.String
-  entity    String   @db.String
-  entityId  String   @db.String
-  metadata  Json?    @db.Json
-  ipAddress String?  @db.String
-  userAgent String?  @db.String
-  createdAt DateTime @default(now()) @db.DateTime
+  action    String  
+  entity    String  
+  entityId  String  
+  metadata  Json?   
+  ipAddress String? 
+  userAgent String? 
+  createdAt DateTime @default(now())
 
   user      User?    @relation("UserAuditLogs", fields: [userId], references: [id], onDelete: SetNull)
 

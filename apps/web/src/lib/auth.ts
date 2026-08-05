@@ -13,7 +13,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
   pages: {
     signIn: '/login',
-    signUp: '/register',
     error: '/login',
     newUser: '/investor',
   },
@@ -58,7 +57,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     async jwt({ token, user, trigger, session }) {
       if (user) {
-        token.id = user.id;
+        token.id = user.id as string;
         token.role = user.role;
         token.isVerified = user.isVerified;
       }
@@ -108,8 +107,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   secret: process.env.NEXTAUTH_SECRET,
 });
 
-declare module 'next-auth' {
+declare module '@auth/core/types' {
   interface Session {
+    accessToken?: string;
     user: {
       id: string;
       email: string;
@@ -126,7 +126,7 @@ declare module 'next-auth' {
   }
 }
 
-declare module 'next-auth/jwt' {
+declare module '@auth/core/jwt' {
   interface JWT {
     id: string;
     role: Role;
