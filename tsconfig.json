@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "preserve",
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@verifin-ai/types/*": ["packages/types/src/*"],
+      "@verifin-ai/ui/*": ["packages/ui/src/*"],
+      "@verifin-ai/config/*": ["packages/config/*"]
+    }
+  },
+  "exclude": ["node_modules", "dist", "build", ".next"]
+}

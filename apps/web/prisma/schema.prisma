@@ -1,0 +1,261 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  email         String    @unique @db.String
+  passwordHash  String    @db.String
+  name          String?   @db.String
+  role          Role      @default(INVESTOR) @db.String
+  avatarUrl     String?   @db.String
+  isVerified    Boolean   @default(false) @db.Boolean
+  createdAt     DateTime  @default(now()) @db.DateTime
+  updatedAt     DateTime  @updatedAt @db.DateTime
+
+  scans         Scan[]    @relation("UserScans")
+  institutions  Institution[] @relation("InstitutionMembers")
+  ownedOrgs     Institution[] @relation("InstitutionOwner")
+  reports       Report[]  @relation("UserReports")
+  sessions      Session[] @relation("UserSessions")
+  auditLogs     AuditLog[] @relation("UserAuditLogs")
+
+  @@index([email])
+  @@index([role])
+}
+
+model Session {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  token     String   @unique @db.String
+  expiresAt DateTime @db.DateTime
+  user      User     @relation("UserSessions", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+}
+
+enum Role {
+  INVESTOR
+  INSTITUTION
+  ADMIN
+  SUPER_ADMIN
+}
+
+model Institution {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  name            String    @db.String
+  registrationNo  String    @unique @db.String
+  logoUrl         String?   @db.String
+  website         String?   @db.String
+  publicKey       String    @db.String
+  privateKeyHash  String    @db.String
+  isVerified      Boolean   @default(false) @db.Boolean
+  ownerId         String    @db.ObjectId
+  createdAt       DateTime  @default(now()) @db.DateTime
+  updatedAt       DateTime  @updatedAt @db.DateTime
+
+  owner           User      @relation("InstitutionOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members         User[]    @relation("InstitutionMembers")
+  notices         Notice[]  @relation("InstitutionNotices")
+  qrCodes         QRCode[]  @relation("InstitutionQRCodes")
+
+  @@index([ownerId])
+  @@index([registrationNo])
+  @@index([isVerified])
+}
+
+model Notice {
+  id              String        @id @default(auto()) @map("_id") @db.ObjectId
+  institutionId   String        @db.ObjectId
+  title           String        @db.String
+  content         String        @db.String
+  documentUrl     String?       @db.String
+  signature       String        @db.String
+  signedBy        String        @db.String
+  signedAt        DateTime      @db.DateTime
+  status          NoticeStatus  @default(ACTIVE) @db.String
+  expiresAt       DateTime?     @db.DateTime
+  createdAt       DateTime      @default(now()) @db.DateTime
+
+  institution     Institution   @relation("InstitutionNotices", fields: [institutionId], references: [id], onDelete: Cascade)
+  qrCodes         QRCode[]      @relation("NoticeQRCodes")
+
+  @@index([institutionId])
+  @@index([status])
+  @@index([signedAt])
+}
+
+enum NoticeStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
+
+model QRCode {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  noticeId      String   @db.ObjectId
+  institutionId String   @db.ObjectId
+  payload       String   @db.String
+  qrImageUrl    String   @db.String
+  scanCount     Int      @default(0) @db.Int
+  lastScannedAt DateTime? @db.DateTime
+  createdAt     DateTime @default(now()) @db.DateTime
+
+  notice        Notice   @relation("NoticeQRCodes", fields: [noticeId], references: [id], onDelete: Cascade)
+  institution   Institution @relation("InstitutionQRCodes", fields: [institutionId], references: [id], onDelete: Cascade)
+  scans         Scan[]   @relation("QRCodeScans")
+
+  @@index([noticeId])
+  @@index([institutionId])
+}
+
+model Scan {
+  id              String       @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String       @db.ObjectId
+  qrCodeId        String?      @db.ObjectId
+  inputType       InputType    @db.String
+  inputContent    String       @db.String
+  fileUrl         String?      @db.String
+  fileName        String?      @db.String
+  fileSize        Int?         @db.Int
+  mimeType        String?      @db.String
+
+  riskScore       Float        @default(0) @db.Double
+  riskLevel       RiskLevel    @default(LOW) @db.String
+  detectors       Json         @db.Json
+  explanations    Json?        @db.Json
+  threats         String[]     @db.String
+
+  isVerified      Boolean      @default(false) @db.Boolean
+  verifiedAt      DateTime?    @db.DateTime
+  matchedNoticeId String?      @db.ObjectId
+
+  status          ScanStatus   @default(PENDING) @db.String
+  completedAt     DateTime?    @db.DateTime
+  createdAt       DateTime     @default(now()) @db.DateTime
+
+  user            User         @relation("UserScans", fields: [userId], references: [id], onDelete: Cascade)
+  qrCode          QRCode?      @relation("QRCodeScans", fields: [qrCodeId], references: [id], onDelete: SetNull)
+  report          Report?      @relation("ScanReport")
+  flaggedContent  FlaggedContent? @relation("ScanFlaggedContent")
+
+  @@index([userId])
+  @@index([qrCodeId])
+  @@index([status])
+  @@index([riskLevel])
+  @@index([createdAt])
+  @@index([matchedNoticeId])
+}
+
+enum InputType {
+  TEXT
+  URL
+  IMAGE
+  AUDIO
+  FILE
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ScanStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model Report {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  scanId      String   @unique @db.ObjectId
+  userId      String   @db.ObjectId
+  pdfUrl      String   @db.String
+  generatedAt DateTime @default(now()) @db.DateTime
+
+  scan        Scan     @relation("ScanReport", fields: [scanId], references: [id], onDelete: Cascade)
+  user        User     @relation("UserReports", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([scanId])
+}
+
+model ThreatFeed {
+  id          String       @id @default(auto()) @map("_id") @db.ObjectId
+  title       String       @db.String
+  description String       @db.String
+  type        ThreatType   @db.String
+  severity    RiskLevel    @db.String
+  indicators  Json         @db.Json
+  source      String       @db.String
+  sourceUrl   String?      @db.String
+  isActive    Boolean      @default(true) @db.Boolean
+  publishedAt DateTime     @db.DateTime
+  createdAt   DateTime     @default(now()) @db.DateTime
+
+  @@index([type])
+  @@index([severity])
+  @@index([isActive])
+  @@index([publishedAt])
+}
+
+enum ThreatType {
+  PHISHING
+  MALWARE
+  SCAM
+  FRAUD
+  IMPERSONATION
+  DATA_LEAK
+  OTHER
+}
+
+model FlaggedContent {
+  id          String      @id @default(auto()) @map("_id") @db.ObjectId
+  scanId      String      @unique @db.ObjectId
+  reason      String      @db.String
+  reviewedBy  String?     @db.ObjectId
+  reviewedAt  DateTime?   @db.DateTime
+  action      FlagAction  @default(PENDING) @db.String
+  createdAt   DateTime    @default(now()) @db.DateTime
+
+  scan        Scan        @relation("ScanFlaggedContent", fields: [scanId], references: [id], onDelete: Cascade)
+
+  @@index([action])
+  @@index([reviewedBy])
+}
+
+enum FlagAction {
+  PENDING
+  CONFIRMED_THREAT
+  FALSE_POSITIVE
+  ESCALATED
+}
+
+model AuditLog {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String?  @db.ObjectId
+  action    String   @db.String
+  entity    String   @db.String
+  entityId  String   @db.String
+  metadata  Json?    @db.Json
+  ipAddress String?  @db.String
+  userAgent String?  @db.String
+  createdAt DateTime @default(now()) @db.DateTime
+
+  user      User?    @relation("UserAuditLogs", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([entity])
+  @@index([entityId])
+  @@index([createdAt])
+}
