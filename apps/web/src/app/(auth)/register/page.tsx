@@ -39,6 +39,7 @@ export default function RegisterPage() {
           name: form.name,
           email: form.email,
           password: form.password,
+          confirmPassword: form.confirmPassword,
           role: form.role,
         }),
       });
