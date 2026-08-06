@@ -6,9 +6,9 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 class ApiClient {
   private client: AxiosInstance;
 
-  constructor() {
+  constructor(baseURL: string = API_URL) {
     this.client = axios.create({
-      baseURL: API_URL,
+      baseURL,
       headers: {
         'Content-Type': 'application/json',
       },
@@ -65,14 +65,14 @@ class ApiClient {
   }
 
   async upload<T>(url: string, formData: FormData) {
-    const response = await this.client.post<T>(url, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    const response = await this.client.post<T>(url, formData);
     return response.data;
   }
 }
 
 export const api = new ApiClient();
+
+export const aiApi = new ApiClient('/api/ai');
 
 export const queryKeys = {
   auth: {
