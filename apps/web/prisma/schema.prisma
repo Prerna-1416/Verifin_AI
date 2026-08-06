@@ -1,0 +1,270 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  email         String    @unique
+  passwordHash  String
+  name          String?
+  role          Role      @default(INVESTOR)
+  avatarUrl     String?
+  isVerified    Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  scans         Scan[]    @relation("UserScans")
+  memberships   UserInstitution[] @relation("UserInstitutionMembers")
+  ownedOrgs     Institution[] @relation("InstitutionOwner")
+  reports       Report[]  @relation("UserReports")
+  sessions      Session[] @relation("UserSessions")
+  auditLogs     AuditLog[] @relation("UserAuditLogs")
+
+  @@index([role])
+}
+
+model Session {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String   @db.ObjectId
+  token     String   @unique
+  expiresAt DateTime
+  user      User     @relation("UserSessions", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+enum Role {
+  INVESTOR
+  INSTITUTION
+  ADMIN
+  SUPER_ADMIN
+}
+
+model UserInstitution {
+  id            String      @id @default(auto()) @map("_id") @db.ObjectId
+  userId        String      @db.ObjectId
+  institutionId String      @db.ObjectId
+  role          Role
+  joinedAt      DateTime    @default(now())
+  user          User        @relation("UserInstitutionMembers", fields: [userId], references: [id], onDelete: Cascade)
+  institution   Institution @relation("InstitutionUserMembers", fields: [institutionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, institutionId])
+  @@index([institutionId])
+}
+
+model Institution {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  name            String
+  registrationNo  String    @unique
+  logoUrl         String?
+  website         String?
+  publicKey       String
+  privateKeyHash  String
+  isVerified      Boolean   @default(false)
+  ownerId         String    @db.ObjectId
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  owner           User      @relation("InstitutionOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members         UserInstitution[] @relation("InstitutionUserMembers")
+  notices         Notice[]  @relation("InstitutionNotices")
+  qrCodes         QRCode[]  @relation("InstitutionQRCodes")
+
+  @@index([ownerId])
+  @@index([isVerified])
+}
+
+model Notice {
+  id              String        @id @default(auto()) @map("_id") @db.ObjectId
+  institutionId   String        @db.ObjectId
+  title           String
+  content         String
+  documentUrl     String?
+  signature       String
+  signedBy        String
+  signedAt        DateTime
+  status          NoticeStatus  @default(ACTIVE)
+  expiresAt       DateTime?
+  createdAt       DateTime      @default(now())
+
+  institution     Institution   @relation("InstitutionNotices", fields: [institutionId], references: [id], onDelete: Cascade)
+  qrCodes         QRCode[]      @relation("NoticeQRCodes")
+
+  @@index([institutionId])
+  @@index([status])
+  @@index([signedAt])
+}
+
+enum NoticeStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
+
+model QRCode {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  noticeId        String   @db.ObjectId
+  institutionId   String   @db.ObjectId
+  payload         String
+  qrImageUrl      String
+  scanCount       Int      @default(0)
+  lastScannedAt   DateTime?
+  createdAt       DateTime @default(now())
+
+  notice          Notice   @relation("NoticeQRCodes", fields: [noticeId], references: [id], onDelete: Cascade)
+  institution     Institution @relation("InstitutionQRCodes", fields: [institutionId], references: [id], onDelete: Cascade)
+  scans         Scan[]   @relation("QRCodeScans")
+
+  @@index([noticeId])
+  @@index([institutionId])
+}
+
+model Scan {
+  id              String       @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String       @db.ObjectId
+  qrCodeId        String?      @db.ObjectId
+  inputType       InputType
+  inputContent    String
+  fileUrl         String?
+  fileName        String?
+  fileSize        Int?
+  mimeType        String?
+
+  riskScore       Float        @default(0)
+  riskLevel       RiskLevel    @default(LOW)
+  detectors       Json
+  explanations    Json?
+  threats         String[]
+
+  isVerified      Boolean      @default(false)
+  verifiedAt      DateTime?
+  matchedNoticeId String?      @db.ObjectId
+
+  status          ScanStatus   @default(PENDING)
+  completedAt     DateTime?
+  createdAt       DateTime     @default(now())
+
+  user            User         @relation("UserScans", fields: [userId], references: [id], onDelete: Cascade)
+  qrCode          QRCode?      @relation("QRCodeScans", fields: [qrCodeId], references: [id], onDelete: SetNull)
+  report          Report?      @relation("ScanReport")
+  flaggedContent  FlaggedContent? @relation("ScanFlaggedContent")
+
+  @@index([userId])
+  @@index([qrCodeId])
+  @@index([status])
+  @@index([riskLevel])
+  @@index([createdAt])
+  @@index([matchedNoticeId])
+}
+
+enum InputType {
+  TEXT
+  URL
+  IMAGE
+  AUDIO
+  FILE
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ScanStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model Report {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  scanId      String   @unique @db.ObjectId
+  userId      String   @db.ObjectId
+  pdfUrl      String
+  generatedAt DateTime @default(now())
+
+  scan        Scan     @relation("ScanReport", fields: [scanId], references: [id], onDelete: Cascade)
+  user        User     @relation("UserReports", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model ThreatFeed {
+  id          String       @id @default(auto()) @map("_id") @db.ObjectId
+  title       String
+  description String
+  type        ThreatType
+  severity    RiskLevel
+  indicators  Json
+  source      String
+  sourceUrl   String?
+  isActive    Boolean      @default(true)
+  publishedAt DateTime
+  createdAt   DateTime     @default(now())
+
+  @@index([type])
+  @@index([severity])
+  @@index([isActive])
+  @@index([publishedAt])
+}
+
+enum ThreatType {
+  PHISHING
+  MALWARE
+  SCAM
+  FRAUD
+  IMPERSONATION
+  DATA_LEAK
+  OTHER
+}
+
+model FlaggedContent {
+  id          String      @id @default(auto()) @map("_id") @db.ObjectId
+  scanId      String      @unique @db.ObjectId
+  reason      String
+  reviewedBy  String?     @db.ObjectId
+  reviewedAt  DateTime?
+  action      FlagAction  @default(PENDING)
+  createdAt   DateTime    @default(now())
+
+  scan        Scan        @relation("ScanFlaggedContent", fields: [scanId], references: [id], onDelete: Cascade)
+
+  @@index([action])
+  @@index([reviewedBy])
+}
+
+enum FlagAction {
+  PENDING
+  CONFIRMED_THREAT
+  FALSE_POSITIVE
+  ESCALATED
+}
+
+model AuditLog {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String?  @db.ObjectId
+  action    String
+  entity    String
+  entityId  String
+  metadata  Json?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  user      User?    @relation("UserAuditLogs", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([entity])
+  @@index([entityId])
+  @@index([createdAt])
+}

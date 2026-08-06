@@ -1,0 +1,46 @@
+version: "3.8"
+
+services:
+  mongodb:
+    image: mongo:7
+    container_name: verifin-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: verifin_ai
+    volumes:
+      - mongo_data:/data/db
+
+  redis:
+    image: redis:7-alpine
+    container_name: verifin-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  api:
+    build: ./apps/api
+    container_name: verifin-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      MONGO_URI: mongodb://mongodb:27017
+      DATABASE_NAME: verifin_ai
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-key-change-in-production-1234}
+      AI_SERVICE_URL: http://ai-service:8001
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      - mongodb
+      - redis
+
+  ai-service:
+    build: ./apps/ai-service
+    container_name: verifin-ai-service
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+
+volumes:
+  mongo_data:
