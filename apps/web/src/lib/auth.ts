@@ -6,6 +6,7 @@ import { compare, hash } from 'bcryptjs';
 import { Role } from '@prisma/client';
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  trustHost: true,
   adapter: PrismaAdapter(prisma),
   session: {
     strategy: 'jwt',
@@ -57,9 +58,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     async jwt({ token, user, trigger, session }) {
       if (user) {
-        token.id = user.id as string;
-        token.role = user.role;
-        token.isVerified = user.isVerified;
+        if (user.id) token.id = user.id;
+        if (user.role) token.role = user.role;
+        if (user.isVerified !== undefined) token.isVerified = user.isVerified;
       }
 
       if (trigger === 'update' && session) {
@@ -107,9 +108,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   secret: process.env.NEXTAUTH_SECRET,
 });
 
-declare module '@auth/core/types' {
+declare module 'next-auth' {
   interface Session {
-    accessToken?: string;
     user: {
       id: string;
       email: string;
@@ -118,6 +118,7 @@ declare module '@auth/core/types' {
       image: string | null;
       isVerified: boolean;
     };
+    accessToken?: string;
   }
 
   interface User {

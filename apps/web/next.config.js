@@ -28,14 +28,16 @@ const nextConfig = {
     ];
   },
   async rewrites() {
+    const apiUrl = process.env.API_URL || 'http://localhost:8000';
+    const aiUrl = process.env.AI_SERVICE_URL || 'http://localhost:8001';
     return [
       {
         source: '/api/backend/:path*',
-        destination: `${process.env.API_URL || 'http://localhost:8000'}/api/v1/:path*`,
+        destination: `${apiUrl}/:path*`,
       },
       {
         source: '/api/ai/:path*',
-        destination: `${process.env.AI_SERVICE_URL || 'http://localhost:8001'}/:path*`,
+        destination: `${aiUrl}/:path*`,
       },
     ];
   },

@@ -1,31 +1,32 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Shield } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 
-export default function AuthLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export const metadata: Metadata = {
+  title: 'Account',
+  description: 'Sign in or create your VeriFin AI account',
+};
+
+export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="relative min-h-screen flex items-center justify-center overflow-hidden">
-      {/* Background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-primary-50 via-background to-accent-50 dark:from-gray-900 dark:via-background dark:to-gray-900" />
-      <div className="absolute inset-0 opacity-30">
-        <div className="absolute top-20 left-[20%] w-72 h-72 rounded-full bg-primary-400/30 blur-3xl animate-pulse-soft" />
-        <div className="absolute bottom-20 right-[20%] w-96 h-96 rounded-full bg-accent-500/20 blur-3xl animate-pulse-soft delay-300" />
-      </div>
-
-      <div className="relative z-10 w-full max-w-md px-4 py-12">
-        <div className="text-center mb-8">
-          <Link href="/" className="inline-flex items-center gap-2 mb-6">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-600 to-accent-600 flex items-center justify-center">
-              <Shield className="w-6 h-6 text-white" />
-            </div>
-            <span className="font-display font-bold text-2xl text-foreground">VeriFin AI</span>
-          </Link>
+    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-background px-4 py-12">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(14,165,233,0.15),transparent_60%)]" />
+      <div className="relative z-10 mb-8 flex items-center gap-3">
+        <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-500 to-primary-700 text-white shadow-elegant">
+          <ShieldCheck className="h-6 w-6" />
+        </span>
+        <div>
+          <p className="text-lg font-bold tracking-tight text-foreground">VeriFin AI</p>
+          <p className="text-xs text-muted-foreground">AI-Powered Financial Fraud Detection</p>
         </div>
-        {children}
       </div>
+      {children}
+      <p className="relative z-10 mt-8 text-center text-xs text-muted-foreground">
+        Protected by bank-grade encryption.{' '}
+        <Link href="/about" className="text-primary hover:underline">
+          Learn more
+        </Link>
+      </p>
     </div>
   );
 }

@@ -1,211 +1,213 @@
 'use client';
 
-import * as React from 'react';
-import { motion } from 'framer-motion';
-import {
-  RadioTower,
-  Plus,
-  Search,
-  Pencil,
-  Trash2,
-  ShieldCheck,
-  Globe,
-  Server,
-  Hash,
-} from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ShieldAlert, Loader2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
-import { EmptyState } from '@/components/data-display/empty-state';
-import {
-  Table,
-  TableHeader,
-  TableBody,
-  TableRow,
-  TableHead,
-  TableCell,
-} from '@/components/ui/table';
-import { toast } from 'sonner';
+import { Input, Label } from '@/components/ui/card';
+import { PortalCard, EmptyState, Badge, SectionTitle } from '@/components/ui/portal-card';
+import { apiGet, apiPost } from '@/lib/portal-api';
+import { formatDate, truncate } from '@/lib/utils';
 
-interface ThreatItem {
+type Threat = {
   id: string;
   title: string;
+  description: string;
   type: string;
   severity: string;
-  indicators: { domains?: number; ips?: number; hashes?: number; urls?: number };
   source: string;
-  status: 'ACTIVE' | 'INACTIVE';
-  published: string;
-}
-
-const threats: ThreatItem[] = [
-  { id: 'THR-2041', title: 'Phishing wave targeting demat account holders', type: 'PHISHING', severity: 'CRITICAL', indicators: { domains: 24, urls: 87 }, source: 'SEBI Advisory', status: 'ACTIVE', published: 'Aug 5, 2026' },
-  { id: 'THR-2040', title: 'Fake mutual fund guaranteed returns scam', type: 'SCAM', severity: 'HIGH', indicators: { domains: 15, hashes: 4 }, source: 'CERT-In', status: 'ACTIVE', published: 'Aug 4, 2026' },
-  { id: 'THR-2039', title: 'Impersonation of broker WhatsApp groups', type: 'IMPERSONATION', severity: 'HIGH', indicators: { domains: 8 }, source: 'Community Report', status: 'ACTIVE', published: 'Aug 3, 2026' },
-  { id: 'THR-2038', title: 'Malware-laced trading app download links', type: 'MALWARE', severity: 'CRITICAL', indicators: { hashes: 12, domains: 6 }, source: 'VirusTotal', status: 'ACTIVE', published: 'Aug 2, 2026' },
-  { id: 'THR-2037', title: 'KYC document collection fraud', type: 'FRAUD', severity: 'MEDIUM', indicators: { domains: 10, urls: 34 }, source: 'RBI Alert', status: 'INACTIVE', published: 'Jul 28, 2026' },
-];
-
-const typeColors: Record<string, 'destructive' | 'warning' | 'secondary'> = {
-  PHISHING: 'destructive',
-  SCAM: 'warning',
-  IMPERSONATION: 'warning',
-  MALWARE: 'destructive',
-  FRAUD: 'destructive',
+  sourceUrl: string | null;
+  isActive: boolean;
+  publishedAt: string;
 };
 
-export default function ThreatFeedPage() {
-  const [search, setSearch] = React.useState('');
-  const [typeFilter, setTypeFilter] = React.useState('');
-  const [severityFilter, setSeverityFilter] = React.useState('');
-
-  const filtered = threats.filter((threat) => {
-    const matchesSearch =
-      threat.title.toLowerCase().includes(search.toLowerCase()) ||
-      threat.id.toLowerCase().includes(search.toLowerCase());
-    const matchesType = !typeFilter || threat.type === typeFilter;
-    const matchesSeverity = !severityFilter || threat.severity === severityFilter;
-    return matchesSearch && matchesType && matchesSeverity;
+export default function AdminThreatsPage() {
+  const [threats, setThreats] = useState<Threat[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [form, setForm] = useState({
+    title: '',
+    description: '',
+    type: 'PHISHING',
+    severity: 'HIGH',
+    source: '',
+    sourceUrl: '',
   });
+
+  useEffect(() => {
+    loadThreats();
+  }, []);
+
+  async function loadThreats() {
+    setLoading(true);
+    try {
+      const data = await apiGet<Threat[]>('/api/admin/threats');
+      setThreats(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load threats');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function onCreate(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    try {
+      await apiPost('/api/admin/threats', {
+        ...form,
+        indicators: {},
+        sourceUrl: form.sourceUrl || undefined,
+      });
+      setForm({ title: '', description: '', type: 'PHISHING', severity: 'HIGH', source: '', sourceUrl: '' });
+      setShowForm(false);
+      await loadThreats();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create threat');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const severityTone = (s: string): 'danger' | 'warning' | 'info' | 'success' => {
+    if (s === 'CRITICAL' || s === 'HIGH') return 'danger';
+    if (s === 'MEDIUM') return 'warning';
+    return 'info';
+  };
+
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center text-muted-foreground">
+        <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading...
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
-        <div>
-          <h1 className="text-2xl font-display font-bold text-foreground">Threat Feed</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Manage threat intelligence shared with all investors.
-          </p>
-        </div>
-        <Button variant="gradient" onClick={() => toast.success('New threat form opened')}>
-          <Plus className="w-4 h-4 mr-2" />
-          Add Threat
+      <div className="flex items-center justify-between">
+        <SectionTitle title="Threat Feed" subtitle="Published threat intelligence" />
+        <Button onClick={() => setShowForm((v) => !v)}>
+          <Plus className="mr-1.5 h-4 w-4" /> New threat
         </Button>
       </div>
 
-      {/* Filters */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="grid sm:grid-cols-3 gap-3">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search threats..." className="pl-10" value={search} onChange={(e) => setSearch(e.target.value)} />
+      {showForm && (
+        <PortalCard>
+          <form onSubmit={onCreate} className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="t-title">Title</Label>
+                <Input
+                  id="t-title"
+                  required
+                  minLength={5}
+                  value={form.title}
+                  onChange={(e) => setForm({ ...form, title: e.target.value })}
+                  placeholder="e.g. New phishing campaign"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="t-source">Source</Label>
+                <Input
+                  id="t-source"
+                  required
+                  value={form.source}
+                  onChange={(e) => setForm({ ...form, source: e.target.value })}
+                  placeholder="e.g. CERT-IN"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="t-type">Type</Label>
+                <select
+                  id="t-type"
+                  className="h-11 w-full rounded-xl border border-input bg-background px-4 text-sm"
+                  value={form.type}
+                  onChange={(e) => setForm({ ...form, type: e.target.value })}
+                >
+                  {['PHISHING', 'MALWARE', 'SCAM', 'FRAUD', 'IMPERSONATION', 'DATA_LEAK', 'OTHER'].map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="t-sev">Severity</Label>
+                <select
+                  id="t-sev"
+                  className="h-11 w-full rounded-xl border border-input bg-background px-4 text-sm"
+                  value={form.severity}
+                  onChange={(e) => setForm({ ...form, severity: e.target.value })}
+                >
+                  {['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="t-desc">Description</Label>
+                <textarea
+                  id="t-desc"
+                  required
+                  minLength={20}
+                  rows={3}
+                  className="w-full rounded-xl border border-input bg-background px-4 py-3 text-sm"
+                  value={form.description}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="t-url">Source URL (optional)</Label>
+                <Input
+                  id="t-url"
+                  type="url"
+                  value={form.sourceUrl}
+                  onChange={(e) => setForm({ ...form, sourceUrl: e.target.value })}
+                  placeholder="https://..."
+                />
+              </div>
             </div>
-            <Select
-              placeholder="Filter by type"
-              value={typeFilter}
-              onChange={setTypeFilter}
-              options={[
-                { value: 'PHISHING', label: 'Phishing' },
-                { value: 'MALWARE', label: 'Malware' },
-                { value: 'SCAM', label: 'Scam' },
-                { value: 'FRAUD', label: 'Fraud' },
-                { value: 'IMPERSONATION', label: 'Impersonation' },
-              ]}
-            />
-            <Select
-              placeholder="Filter by severity"
-              value={severityFilter}
-              onChange={setSeverityFilter}
-              options={[
-                { value: 'LOW', label: 'Low' },
-                { value: 'MEDIUM', label: 'Medium' },
-                { value: 'HIGH', label: 'High' },
-                { value: 'CRITICAL', label: 'Critical' },
-              ]}
-            />
-          </div>
-        </CardContent>
-      </Card>
+            {error && <p className="text-sm text-red-600">{error}</p>}
+            <Button type="submit" disabled={submitting}>
+              {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Publish threat
+            </Button>
+          </form>
+        </PortalCard>
+      )}
 
-      {/* Threat list */}
-      {filtered.length > 0 ? (
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Threat</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Severity</TableHead>
-                  <TableHead>Indicators</TableHead>
-                  <TableHead>Source</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((threat, index) => (
-                  <motion.tr
-                    key={threat.id}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: index * 0.05 }}
-                    className="border-b transition-colors hover:bg-muted/50"
-                  >
-                    <TableCell className="max-w-[260px]">
-                      <div className="font-medium text-foreground truncate">{threat.title}</div>
-                      <div className="font-mono text-xs text-muted-foreground mt-0.5">{threat.id}</div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={typeColors[threat.type] || 'secondary'}>{threat.type}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={threat.severity === 'CRITICAL' ? 'destructive' : threat.severity === 'HIGH' ? 'warning' : 'secondary'}>
-                        {threat.severity}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-3 text-xs text-muted-foreground">
-                        {threat.indicators.domains && (
-                          <span className="flex items-center gap-1">
-                            <Globe className="w-3 h-3" />
-                            {threat.indicators.domains}
-                          </span>
-                        )}
-                        {threat.indicators.urls && (
-                          <span className="flex items-center gap-1">
-                            <Globe className="w-3 h-3" />
-                            {threat.indicators.urls}
-                          </span>
-                        )}
-                        {threat.indicators.hashes && (
-                          <span className="flex items-center gap-1">
-                            <Hash className="w-3 h-3" />
-                            {threat.indicators.hashes}
-                          </span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{threat.source}</TableCell>
-                    <TableCell>
-                      <Badge variant={threat.status === 'ACTIVE' ? 'success' : 'secondary'}>{threat.status}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => toast.info(`Editing ${threat.id}`)}>
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => toast.error(`${threat.id} deleted`)}>
-                          <Trash2 className="w-4 h-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </motion.tr>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      ) : (
+      {error && !showForm && <p className="text-sm text-red-600">{error}</p>}
+
+      {threats.length === 0 ? (
         <EmptyState
-          icon={<RadioTower className="w-8 h-8 text-muted-foreground" />}
-          title="No threats found"
-          description="Try adjusting your filters or add a new threat."
-          action={<Button onClick={() => toast.success('New threat form opened')}>Add Threat</Button>}
+          icon={<ShieldAlert className="h-6 w-6" />}
+          title="No threats published"
+          description="Publish your first threat intelligence item."
         />
+      ) : (
+        <div className="space-y-4">
+          {threats.map((threat) => (
+            <PortalCard key={threat.id}>
+              <div className="mb-2 flex flex-wrap items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <h3 className="text-base font-semibold">{threat.title}</h3>
+                  <Badge tone={severityTone(threat.severity)}>{threat.severity}</Badge>
+                  <Badge tone="neutral">{threat.type}</Badge>
+                </div>
+                <span className="text-xs text-muted-foreground">
+                  {formatDate(threat.publishedAt)}
+                </span>
+              </div>
+              <p className="text-sm text-muted-foreground">{truncate(threat.description, 220)}</p>
+              <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+                <ShieldAlert className="h-3.5 w-3.5" />
+                Source: {threat.source}
+                {threat.isActive ? ' · Active' : ' · Archived'}
+              </div>
+            </PortalCard>
+          ))}
+        </div>
       )}
     </div>
   );

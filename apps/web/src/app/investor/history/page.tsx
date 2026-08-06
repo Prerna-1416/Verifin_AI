@@ -1,197 +1,123 @@
 'use client';
 
-import * as React from 'react';
-import { motion } from 'framer-motion';
-import {
-  Search,
-  Download,
-  Eye,
-  Filter,
-  FileText,
-  Link as LinkIcon,
-  Image as ImageIcon,
-  Music,
-} from 'lucide-react';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { History as HistoryIcon, FileJson, ScanSearch, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
-import { EmptyState } from '@/components/data-display/empty-state';
-import {
-  Table,
-  TableHeader,
-  TableBody,
-  TableRow,
-  TableHead,
-  TableCell,
-} from '@/components/ui/table';
-import { getRiskVariant } from '@/lib/utils';
-import { toast } from 'sonner';
+import { cn, formatDate, formatRelativeTime } from '@/lib/utils';
+import { apiGet } from '@/lib/portal-api';
 
-interface HistoryItem {
+interface SavedScan {
   id: string;
-  type: 'TEXT' | 'URL' | 'IMAGE' | 'AUDIO';
-  content: string;
-  score: number;
-  level: string;
-  date: string;
-  status: 'COMPLETED' | 'FAILED';
+  inputType: string;
+  inputContent: string | null;
+  riskScore: number;
+  riskLevel: string;
+  isVerified: boolean;
+  createdAt: string;
 }
 
-const scanHistory: HistoryItem[] = [
-  { id: 'SC-2026-001', type: 'URL', content: 'https://secure-invest-bonus.com', score: 94, level: 'CRITICAL', date: 'Aug 5, 2026', status: 'COMPLETED' },
-  { id: 'SC-2026-002', type: 'TEXT', content: 'Urgent: Your trading account has been flagged for unusual activity...', score: 87, level: 'HIGH', date: 'Aug 5, 2026', status: 'COMPLETED' },
-  { id: 'SC-2026-003', type: 'IMAGE', content: 'suspicious_brochure.png', score: 12, level: 'LOW', date: 'Aug 4, 2026', status: 'COMPLETED' },
-  { id: 'SC-2026-004', type: 'URL', content: 'https://hdfc-securities.in.net', score: 91, level: 'CRITICAL', date: 'Aug 4, 2026', status: 'COMPLETED' },
-  { id: 'SC-2026-005', type: 'AUDIO', content: 'investment_call_recording.mp3', score: 45, level: 'MEDIUM', date: 'Aug 3, 2026', status: 'COMPLETED' },
-  { id: 'SC-2026-006', type: 'TEXT', content: 'Congratulations! You have been selected for guaranteed returns...', score: 96, level: 'CRITICAL', date: 'Aug 3, 2026', status: 'COMPLETED' },
-  { id: 'SC-2026-007', type: 'URL', content: 'https://investindia.gov.in', score: 5, level: 'LOW', date: 'Aug 2, 2026', status: 'COMPLETED' },
-  { id: 'SC-2026-008', type: 'IMAGE', content: 'bank_notice.png', score: 28, level: 'LOW', date: 'Aug 2, 2026', status: 'COMPLETED' },
-];
-
-const typeIcons = {
-  TEXT: <FileText className="w-4 h-4" />,
-  URL: <LinkIcon className="w-4 h-4" />,
-  IMAGE: <ImageIcon className="w-4 h-4" />,
-  AUDIO: <Music className="w-4 h-4" />,
-};
-
 export default function HistoryPage() {
-  const [search, setSearch] = React.useState('');
-  const [typeFilter, setTypeFilter] = React.useState('');
-  const [levelFilter, setLevelFilter] = React.useState('');
+  const [scans, setScans] = useState<SavedScan[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const filtered = scanHistory.filter((scan) => {
-    const matchesSearch =
-      scan.content.toLowerCase().includes(search.toLowerCase()) ||
-      scan.id.toLowerCase().includes(search.toLowerCase());
-    const matchesType = !typeFilter || scan.type === typeFilter;
-    const matchesLevel = !levelFilter || scan.level === levelFilter;
-    return matchesSearch && matchesType && matchesLevel;
-  });
+  useEffect(() => {
+    apiGet<SavedScan[]>('/api/scans')
+      .then(setScans)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load history'))
+      .finally(() => setLoading(false));
+  }, []);
 
-  const handleDownload = (id: string) => {
-    toast.success(`Report for ${id} is being downloaded...`);
-  };
+  const riskColor = (level: string) =>
+    cn(
+      'inline-flex rounded-full px-2 py-0.5 text-xs font-medium',
+      level === 'LOW' && 'bg-success-50 text-success-600',
+      level === 'MEDIUM' && 'bg-warning-50 text-warning-600',
+      level === 'HIGH' && 'bg-orange-50 text-orange-600',
+      level === 'CRITICAL' && 'bg-destructive/10 text-destructive'
+    );
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-display font-bold text-foreground">Scan History</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            View and download reports for all your past scans.
-          </p>
+    <div className="mx-auto max-w-4xl space-y-8">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-500 to-primary-700 text-white shadow-elegant">
+            <HistoryIcon className="h-6 w-6" />
+          </span>
+          <div>
+            <h2 className="text-heading-lg font-bold tracking-tight text-foreground">Scan history</h2>
+            <p className="text-sm text-muted-foreground">
+              {scans ? `${scans.length} scan${scans.length === 1 ? '' : 's'} recorded` : 'Your past verifications'}
+            </p>
+          </div>
         </div>
-        <Button variant="outline" size="sm">
-          <Download className="w-4 h-4 mr-2" />
-          Export All
-        </Button>
+        <Link href="/investor/scanner">
+          <Button size="sm">
+            <ScanSearch className="mr-2 h-4 w-4" />
+            New scan
+          </Button>
+        </Link>
       </div>
 
-      {/* Filters */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="grid sm:grid-cols-3 gap-3">
-            <div className="relative sm:col-span-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search scans..."
-                className="pl-10"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
-            <Select
-              placeholder="Filter by type"
-              value={typeFilter}
-              onChange={setTypeFilter}
-              options={[
-                { value: 'TEXT', label: 'Text' },
-                { value: 'URL', label: 'URL' },
-                { value: 'IMAGE', label: 'Image' },
-                { value: 'AUDIO', label: 'Audio' },
-              ]}
-            />
-            <Select
-              placeholder="Filter by risk"
-              value={levelFilter}
-              onChange={setLevelFilter}
-              options={[
-                { value: 'LOW', label: 'Low' },
-                { value: 'MEDIUM', label: 'Medium' },
-                { value: 'HIGH', label: 'High' },
-                { value: 'CRITICAL', label: 'Critical' },
-              ]}
-            />
-          </div>
-        </CardContent>
-      </Card>
+      {loading && (
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-border bg-card py-16 shadow-glass">
+          <Loader2 className="mb-3 h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Loading your scan history…</p>
+        </div>
+      )}
 
-      {/* Table */}
-      {filtered.length > 0 ? (
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Scan ID</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Content</TableHead>
-                  <TableHead>Risk Score</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((scan, index) => (
-                  <motion.tr
-                    key={scan.id}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: index * 0.05 }}
-                    className="border-b transition-colors hover:bg-muted/50"
-                  >
-                    <TableCell className="font-mono text-xs">{scan.id}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span className="text-muted-foreground">{typeIcons[scan.type]}</span>
-                        <Badge variant="outline" className="text-xs">{scan.type}</Badge>
-                      </div>
-                    </TableCell>
-                    <TableCell className="max-w-[250px] truncate text-muted-foreground">
-                      {scan.content}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold">{scan.score}</span>
-                        <Badge variant={getRiskVariant(scan.level)}>{scan.level}</Badge>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{scan.date}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button variant="ghost" size="sm" onClick={() => toast.info(`Opening ${scan.id}...`)}>
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleDownload(scan.id)}>
-                          <Download className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </motion.tr>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      ) : (
-        <EmptyState
-          title="No scans found"
-          description="Try adjusting your filters or perform a new scan."
-          action={<Button onClick={() => window.location.href = '/investor/scanner'}>New Scan</Button>}
-        />
+      {error && (
+        <div className="rounded-2xl border border-border bg-card p-8 text-center shadow-glass">
+          <p className="text-sm text-muted-foreground">{error}</p>
+          <Button variant="outline" size="sm" className="mt-4" onClick={() => window.location.reload()}>
+            Retry
+          </Button>
+        </div>
+      )}
+
+      {!loading && !error && scans && scans.length === 0 && (
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card py-16 shadow-glass">
+          <FileJson className="mb-3 h-10 w-10 text-muted-foreground" />
+          <p className="text-sm font-medium text-foreground">No scans yet</p>
+          <p className="mt-1 text-sm text-muted-foreground">Run a scan in the AI Scanner to see it here.</p>
+          <Link href="/investor/scanner" className="mt-4">
+            <Button size="sm">Start your first scan</Button>
+          </Link>
+        </div>
+      )}
+
+      {!loading && !error && scans && scans.length > 0 && (
+        <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-glass">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                <th className="px-5 py-3 font-semibold">Type</th>
+                <th className="px-5 py-3 font-semibold">Input</th>
+                <th className="px-5 py-3 font-semibold">Risk</th>
+                <th className="px-5 py-3 font-semibold">Score</th>
+                <th className="px-5 py-3 font-semibold">When</th>
+              </tr>
+            </thead>
+            <tbody>
+              {scans.map((scan) => (
+                <tr key={scan.id} className="border-b border-border/60 last:border-0 hover:bg-muted/30">
+                  <td className="px-5 py-3 font-medium text-foreground">{scan.inputType}</td>
+                  <td className="max-w-[240px] truncate px-5 py-3 text-muted-foreground">
+                    {scan.inputContent || '—'}
+                  </td>
+                  <td className="px-5 py-3">
+                    <span className={riskColor(scan.riskLevel)}>{scan.riskLevel}</span>
+                  </td>
+                  <td className="px-5 py-3 text-muted-foreground">{Math.round(scan.riskScore)}%</td>
+                  <td className="px-5 py-3 text-muted-foreground" title={formatDate(scan.createdAt)}>
+                    {formatRelativeTime(scan.createdAt)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

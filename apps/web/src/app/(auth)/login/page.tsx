@@ -1,153 +1,101 @@
 'use client';
 
-import { useState, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { Suspense } from 'react';
+import { useState } from 'react';
 import { signIn } from 'next-auth/react';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm } from 'react-hook-form';
-import { motion } from 'framer-motion';
-import { Eye, EyeOff, LogIn, Lock, Mail } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { toast } from 'sonner';
-import { loginSchema, type LoginInput } from '@/lib/validations';
+import { ShieldAlert } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardDescription, CardHeader, CardTitle, Input, Label } from '@/components/ui/card';
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<LoginInput>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: { email: '', password: '', rememberMe: true },
-  });
-
-  const onSubmit = async (data: LoginInput) => {
-    setIsLoading(true);
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
     try {
       const result = await signIn('credentials', {
-        email: data.email,
-        password: data.password,
+        email,
+        password,
         redirect: false,
       });
-
       if (result?.error) {
-        toast.error('Invalid email or password');
+        toast.error(result.error === 'CredentialsSignin' ? 'Invalid email or password' : result.error);
         return;
       }
-
-      toast.success('Welcome back!');
-      const callbackUrl = searchParams.get('callbackUrl') || '/investor';
-      router.push(callbackUrl);
+      toast.success('Signed in successfully');
+      const callbackUrl = searchParams.get('callbackUrl');
+      router.push(callbackUrl && callbackUrl.startsWith('/') ? callbackUrl : '/investor');
       router.refresh();
-    } catch (error) {
-      toast.error('Something went wrong. Please try again.');
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  };
+  }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      className="glass-strong rounded-3xl p-8 shadow-elegant-hover"
-    >
-      <div className="text-center mb-8">
-        <h1 className="text-2xl font-display font-bold text-foreground mb-2">Welcome Back</h1>
-        <p className="text-sm text-muted-foreground">
-          Sign in to continue protecting your investments
-        </p>
-      </div>
-
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-        <div className="relative">
-          <Mail className="absolute left-3 top-[38px] h-4 w-4 text-muted-foreground" />
+    <Card>
+      <CardHeader>
+        <CardTitle>Welcome back</CardTitle>
+        <CardDescription>Sign in to verify financial communications instantly</CardDescription>
+      </CardHeader>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <Label htmlFor="email">Email</Label>
           <Input
+            id="email"
             type="email"
-            label="Email Address"
+            required
+            autoComplete="email"
             placeholder="you@example.com"
-            className="pl-10"
-            error={errors.email?.message}
-            {...register('email')}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
           />
         </div>
-
-        <div className="relative">
-          <Lock className="absolute left-3 top-[38px] h-4 w-4 text-muted-foreground" />
+        <div>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="password">Password</Label>
+            <Link href="/forgot-password" className="text-xs text-primary hover:underline">
+              Forgot password?
+            </Link>
+          </div>
           <Input
-            type={showPassword ? 'text' : 'password'}
-            label="Password"
-            placeholder="Enter your password"
-            className="pl-10 pr-10"
-            error={errors.password?.message}
-            {...register('password')}
+            id="password"
+            type="password"
+            required
+            autoComplete="current-password"
+            placeholder="••••••••"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
           />
-          <button
-            type="button"
-            onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-3 top-[38px] text-muted-foreground hover:text-foreground transition-colors"
-            aria-label={showPassword ? 'Hide password' : 'Show password'}
-          >
-            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-          </button>
         </div>
-
-        <div className="flex items-center justify-between text-sm">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              className="w-4 h-4 rounded border-border accent-primary"
-              {...register('rememberMe')}
-            />
-            <span className="text-muted-foreground">Remember me</span>
-          </label>
-          <Link href="/forgot-password" className="text-primary hover:text-primary/80 font-medium">
-            Forgot password?
-          </Link>
-        </div>
-
-        <Button
-          type="submit"
-          size="lg"
-          variant="gradient"
-          className="w-full"
-          loading={isLoading}
-        >
-          {!isLoading && <LogIn className="w-4 h-4 mr-2" />}
-          Sign In
+        <Button type="submit" className="w-full" size="lg" loading={loading}>
+          Sign in
         </Button>
+        <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
+          <ShieldAlert className="h-3.5 w-3.5" />
+          Always verify messages before sharing sensitive info.
+        </p>
       </form>
-
-      <div className="relative my-6">
-        <div className="absolute inset-0 flex items-center">
-          <span className="w-full border-t border-border" />
-        </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-card px-2 text-muted-foreground">New to VeriFin AI?</span>
-        </div>
-      </div>
-
-      <p className="text-center text-sm text-muted-foreground">
+      <p className="mt-6 text-center text-sm text-muted-foreground">
         Don&apos;t have an account?{' '}
-        <Link href="/register" className="text-primary font-medium hover:text-primary/80">
-          Create one free
+        <Link href="/register" className="font-medium text-primary hover:underline">
+          Create one
         </Link>
       </p>
-    </motion.div>
+    </Card>
   );
 }
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="text-center">Loading...</div>}>
+    <Suspense fallback={null}>
       <LoginForm />
     </Suspense>
   );

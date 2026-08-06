@@ -71,7 +71,7 @@ export type InstitutionRegisterInput = z.infer<typeof institutionRegisterSchema>
 
 export const noticeCreateSchema = z.object({
   title: z.string().min(5, 'Title must be at least 5 characters').max(200),
-  type: z.enum(['ADVISORY', 'CIRCULAR', 'ALERT', 'OTHER']),
+  type: z.enum(['ADVISORY', 'CIRCULAR', 'ALERT', 'OTHER']).optional(),
   content: z.string().min(50, 'Content must be at least 50 characters'),
   documentUrl: z.string().url('Invalid document URL').optional().or(z.literal('')),
   expiresAt: z.string().datetime().optional().nullable(),

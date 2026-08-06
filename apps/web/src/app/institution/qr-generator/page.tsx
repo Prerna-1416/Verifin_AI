@@ -1,196 +1,175 @@
 'use client';
 
-import * as React from 'react';
-import { motion } from 'framer-motion';
-import {
-  QrCode,
-  Download,
-  Copy,
-  Check,
-  Share2,
-  RefreshCw,
-  ShieldCheck,
-} from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { QrCode, Loader2, RefreshCw, Copy, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { PortalCard, EmptyState, Badge } from '@/components/ui/portal-card';
+import { apiGet, apiPost } from '@/lib/portal-api';
+import { formatDate } from '@/lib/utils';
 import { QRCodeSVG } from 'qrcode.react';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { toast } from 'sonner';
 
-export default function QRGeneratorPage() {
-  const [noticeId, setNoticeId] = React.useState('');
-  const [qrSize, setQrSize] = React.useState('256');
-  const [copied, setCopied] = React.useState(false);
+type Notice = {
+  id: string;
+  title: string;
+  status: string;
+  signedAt: string;
+  qrCodes: Array<{ id: string; payload: string; qrImageUrl: string }>;
+};
 
-  const handleCopy = () => {
-    setCopied(true);
-    toast.success('QR code copied to clipboard');
-    setTimeout(() => setCopied(false), 2000);
-  };
+export default function QrGeneratorPage() {
+  const [notices, setNotices] = useState<Notice[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
 
-  const handleDownload = () => {
-    toast.success('QR code downloaded as SVG');
-  };
+  useEffect(() => {
+    loadNotices();
+  }, []);
+
+  async function loadNotices() {
+    setLoading(true);
+    try {
+      const data = await apiGet<Notice[]>('/api/notices');
+      setNotices(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load notices');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function generateQr(noticeId: string) {
+    setGenerating(noticeId);
+    setError(null);
+    try {
+      await apiPost(`/api/notices/${noticeId}/qr`);
+      await loadNotices();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate QR');
+    } finally {
+      setGenerating(null);
+    }
+  }
+
+  async function copyPayload(payload: string, id: string) {
+    try {
+      await navigator.clipboard.writeText(payload);
+      setCopied(id);
+      setTimeout(() => setCopied(null), 1500);
+    } catch {}
+  }
+
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center text-muted-foreground">
+        <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading...
+      </div>
+    );
+  }
+
+  if (error && notices.length === 0) {
+    return (
+      <EmptyState
+        icon={<QrCode className="h-6 w-6" />}
+        title="Could not load notices"
+        description={error}
+        action={<Button variant="outline" onClick={loadNotices}>Retry</Button>}
+      />
+    );
+  }
+
+  if (notices.length === 0) {
+    return (
+      <EmptyState
+        icon={<QrCode className="h-6 w-6" />}
+        title="No notices yet"
+        description="Register a notice first, then generate its QR code."
+        action={
+          <Button onClick={() => (window.location.href = '/institution/register-notice')}>
+            Register a notice
+          </Button>
+        }
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-display font-bold text-foreground">QR Generator</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Generate verifiable QR codes for your registered notices.
+        <h2 className="text-lg font-semibold">QR Code Generator</h2>
+        <p className="text-sm text-muted-foreground">
+          Generate a verifiable QR code for each signed notice.
         </p>
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-6">
-        {/* Controls */}
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <QrCode className="w-5 h-5 text-primary" />
-                QR Code Settings
-              </CardTitle>
-              <CardDescription>Configure your QR code</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Select
-                label="Select Notice"
-                placeholder="Choose a registered notice"
-                value={noticeId}
-                onChange={setNoticeId}
-                options={[
-                  { value: 'NTC-2026-089', label: 'NTC-2026-089 - Advisory on Account Security' },
-                  { value: 'NTC-2026-088', label: 'NTC-2026-088 - KYC Compliance Update' },
-                  { value: 'NTC-2026-087', label: 'NTC-2026-087 - Trading Suspension' },
-                ]}
-              />
-              <Select
-                label="QR Code Size"
-                value={qrSize}
-                onChange={setQrSize}
-                options={[
-                  { value: '128', label: 'Small (128px)' },
-                  { value: '256', label: 'Medium (256px)' },
-                  { value: '512', label: 'Large (512px)' },
-                ]}
-              />
-              <div className="rounded-xl bg-primary/5 border border-primary/10 p-4">
-                <div className="flex items-start gap-2">
-                  <ShieldCheck className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                  <div>
-                    <div className="text-sm font-medium text-foreground mb-1">Signed Payload</div>
-                    <div className="text-xs text-muted-foreground font-mono break-all">
-                      v1.ntc-2026-089.sig=ed25519:a3f8...9c2b
-                    </div>
-                  </div>
-                </div>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {notices.map((notice) => {
+          const qr = notice.qrCodes[0];
+          return (
+            <PortalCard key={notice.id} className="flex flex-col">
+              <div className="mb-3 flex items-start justify-between gap-2">
+                <h3 className="line-clamp-2 text-sm font-semibold">{notice.title}</h3>
+                <Badge tone={notice.status === 'ACTIVE' ? 'success' : 'neutral'}>
+                  {notice.status}
+                </Badge>
               </div>
-            </CardContent>
-          </Card>
+              <p className="mb-4 text-xs text-muted-foreground">
+                Signed {formatDate(notice.signedAt)}
+              </p>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Download Options</CardTitle>
-              <CardDescription>Export your QR code in various formats</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Tabs defaultValue="svg">
-                <TabsList className="w-full grid grid-cols-3">
-                  <TabsTrigger value="svg">SVG</TabsTrigger>
-                  <TabsTrigger value="png">PNG</TabsTrigger>
-                  <TabsTrigger value="pdf">PDF</TabsTrigger>
-                </TabsList>
-                <TabsContent value="svg">
-                  <div className="grid sm:grid-cols-2 gap-3 mt-4">
-                    <Button variant="outline" onClick={handleDownload}>
-                      <Download className="w-4 h-4 mr-2" />
-                      Download SVG
-                    </Button>
-                    <Button variant="ghost" onClick={handleCopy}>
-                      {copied ? <Check className="w-4 h-4 mr-2 text-success-500" /> : <Copy className="w-4 h-4 mr-2" />}
-                      Copy
-                    </Button>
+              {qr ? (
+                <div className="flex flex-col items-center">
+                  <div className="rounded-xl border border-border bg-white p-3">
+                    <QRCodeSVG value={qr.payload} size={160} />
                   </div>
-                </TabsContent>
-                <TabsContent value="png">
-                  <div className="grid sm:grid-cols-2 gap-3 mt-4">
-                    <Button variant="outline" onClick={handleDownload}>
-                      <Download className="w-4 h-4 mr-2" />
-                      Download PNG
+                  <div className="mt-3 flex w-full gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => copyPayload(qr.payload, qr.id)}
+                    >
+                      {copied === qr.id ? (
+                        <Check className="mr-1.5 h-4 w-4" />
+                      ) : (
+                        <Copy className="mr-1.5 h-4 w-4" />
+                      )}
+                      Copy payload
                     </Button>
-                    <Button variant="ghost" onClick={() => toast.success('PNG code copied')}>
-                      <Copy className="w-4 h-4 mr-2" />
-                      Copy
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={generateQr.bind(null, notice.id)}
+                      disabled={generating === notice.id}
+                    >
+                      <RefreshCw
+                        className={generating === notice.id ? 'h-4 w-4 animate-spin' : 'h-4 w-4'}
+                      />
                     </Button>
-                  </div>
-                </TabsContent>
-                <TabsContent value="pdf">
-                  <div className="grid sm:grid-cols-2 gap-3 mt-4">
-                    <Button variant="outline" onClick={handleDownload}>
-                      <Download className="w-4 h-4 mr-2" />
-                      Download PDF
-                    </Button>
-                    <Button variant="ghost" onClick={() => toast.success('PDF code copied')}>
-                      <Copy className="w-4 h-4 mr-2" />
-                      Copy
-                    </Button>
-                  </div>
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Preview */}
-        <div>
-          <Card className="sticky top-24">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <QrCode className="w-5 h-5 text-primary" />
-                Live Preview
-              </CardTitle>
-              <CardDescription>Your QR code as investors will see it</CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.4 }}
-                className="p-6 rounded-3xl bg-white shadow-elegant-hover"
-              >
-                <QRCodeSVG
-                  value={`https://verifin.ai/verify/${noticeId || 'ntc-2026-089'}`}
-                  size={parseInt(qrSize)}
-                />
-              </motion.div>
-
-              <div className="mt-6 w-full space-y-3">
-                <div className="rounded-xl bg-success-500/10 border border-success-500/30 p-4 flex items-center gap-3">
-                  <ShieldCheck className="w-5 h-5 text-success-600 shrink-0" />
-                  <div>
-                    <div className="text-sm font-medium text-foreground">Cryptographically Signed</div>
-                    <div className="text-xs text-muted-foreground">Verified by Ed25519 digital signature</div>
                   </div>
                 </div>
-
-                <div className="flex gap-3">
-                  <Button variant="gradient" className="flex-1" onClick={handleDownload}>
-                    <Download className="w-4 h-4 mr-2" />
-                    Download
-                  </Button>
-                  <Button variant="outline" onClick={() => toast.success('Share link copied')}>
-                    <Share2 className="w-4 h-4" />
-                  </Button>
-                  <Button variant="outline" onClick={() => toast.success('QR code regenerated')}>
-                    <RefreshCw className="w-4 h-4" />
+              ) : (
+                <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-border py-8">
+                  <Button
+                    variant="outline"
+                    onClick={() => generateQr(notice.id)}
+                    disabled={generating === notice.id}
+                  >
+                    {generating === notice.id ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <QrCode className="mr-2 h-4 w-4" />
+                    )}
+                    Generate QR
                   </Button>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+              )}
+            </PortalCard>
+          );
+        })}
       </div>
     </div>
   );

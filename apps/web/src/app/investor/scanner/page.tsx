@@ -1,432 +1,386 @@
 'use client';
 
-import * as React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState } from 'react';
+import { useSession } from 'next-auth/react';
+import Link from 'next/link';
 import {
   FileText,
-  Link as LinkIcon,
+  Link2,
   Image as ImageIcon,
-  Music,
-  ScanSearch,
+  AudioLines,
   ShieldCheck,
+  ShieldAlert,
+  Download,
+  Loader2,
+  UploadCloud,
   CheckCircle2,
   XCircle,
-  AlertTriangle,
-  Download,
-  RotateCcw,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Textarea } from '@/components/ui/textarea';
-import { Input } from '@/components/ui/input';
-import { FileUpload } from '@/components/forms/file-upload';
-import { RiskScore } from '@/components/data-display/risk-score';
-import { Badge } from '@/components/ui/badge';
-import { toast } from 'sonner';
+import { Input, Label } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import {
+  useDetectAudio,
+  useDetectImage,
+  useDetectText,
+  useDetectUrl,
+  useAnalyze,
+} from '@/hooks/use-scan';
+import type { ScanResultSummary } from '@/api/mappers';
+import { getRiskColor } from '@/lib/utils';
+import { toast } from 'sonner';
 
-type ScanType = 'TEXT' | 'URL' | 'IMAGE' | 'AUDIO';
+type InputMode = 'text' | 'url' | 'image' | 'audio';
 
-interface DetectorResult {
-  name: string;
-  status: 'passed' | 'flagged' | 'checking';
-  detail: string;
-}
-
-interface MockScanResult {
-  score: number;
-  level: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-  detectors: DetectorResult[];
-  threats: string[];
-}
-
-const mockResults: Record<ScanType, MockScanResult> = {
-  TEXT: {
-    score: 87,
-    level: 'HIGH',
-    detectors: [
-      { name: 'Phishing Pattern Analysis', status: 'flagged', detail: 'Urgent action required + payment demand pattern detected (confidence: 94%)' },
-      { name: 'Lexical Analysis', status: 'flagged', detail: 'High emotional trigger words: "immediately", "suspended", "verify within 24 hours"' },
-      { name: 'Sender Identity Check', status: 'flagged', detail: 'Claims to be SEBI but domain mismatches official registry' },
-      { name: 'Grammar & Language Model', status: 'passed', detail: 'No anomalies detected in language model' },
-    ],
-    threats: ['Phishing', 'Impersonation', 'Urgency Scam'],
-  },
-  URL: {
-    score: 91,
-    level: 'CRITICAL',
-    detectors: [
-      { name: 'Domain Reputation', status: 'flagged', detail: 'Domain registered 3 days ago (whois: privacy-protected)' },
-      { name: 'SSL & Certificate Check', status: 'passed', detail: 'Valid SSL certificate found' },
-      { name: 'Redirect Analysis', status: 'flagged', detail: '3 redirects detected, final destination differs from displayed URL' },
-      { name: 'Typo-Squatting Detection', status: 'flagged', detail: 'Visually similar to hdfc-securities.com (1 char difference)' },
-      { name: 'Threat Feed Match', status: 'flagged', detail: 'Domain matches active threat indicator #THR-2041' },
-    ],
-    threats: ['Phishing', 'Typo-Squatting', 'Malicious URL'],
-  },
-  IMAGE: {
-    score: 34,
-    level: 'MEDIUM',
-    detectors: [
-      { name: 'Logo Verification', status: 'flagged', detail: 'Logo detected resembles SEBI logo but with minor distortion' },
-      { name: 'QR Code Extraction', status: 'passed', detail: 'QR code decoded, signature verification pending' },
-      { name: 'Image Tampering (ELA)', status: 'flagged', detail: 'Error Level Analysis shows edited regions around logo (21%)' },
-      { name: 'OCR Text Extraction', status: 'passed', detail: 'Text extraction completed, no suspicious keywords' },
-    ],
-    threats: ['Logo Misuse', 'Document Tampering'],
-  },
-  AUDIO: {
-    score: 45,
-    level: 'MEDIUM',
-    detectors: [
-      { name: 'Speech-to-Text', status: 'passed', detail: 'Transcription completed (12 seconds audio)' },
-      { name: 'Script Analysis', status: 'flagged', detail: 'Phrases like "guaranteed returns", "limited time offer" detected' },
-      { name: 'Voice Consistency', status: 'passed', detail: 'Single speaker detected, voice patterns consistent' },
-      { name: 'Claim Verification', status: 'flagged', detail: 'Claims of "SEBI-approved returns" - no matching official record' },
-    ],
-    threats: ['Investment Scam', 'Misleading Claims'],
-  },
-};
-
-const typeConfig = {
-  TEXT: {
-    icon: FileText,
-    label: 'Text',
-    placeholder: 'Paste suspicious text here... e.g., an email, SMS, or WhatsApp message',
-  },
-  URL: {
-    icon: LinkIcon,
-    label: 'URL',
-    placeholder: 'https://example.com',
-  },
-  IMAGE: {
-    icon: ImageIcon,
-    label: 'Image',
-    accept: 'image/*',
-  },
-  AUDIO: {
-    icon: Music,
-    label: 'Audio',
-    accept: 'audio/*',
-  },
-};
+const tabs: { mode: InputMode; label: string; icon: typeof FileText }[] = [
+  { mode: 'text', label: 'Text', icon: FileText },
+  { mode: 'url', label: 'URL', icon: Link2 },
+  { mode: 'image', label: 'Image', icon: ImageIcon },
+  { mode: 'audio', label: 'Audio', icon: AudioLines },
+];
 
 export default function ScannerPage() {
-  const [scanType, setScanType] = React.useState<ScanType>('TEXT');
-  const [text, setText] = React.useState('');
-  const [url, setUrl] = React.useState('');
-  const [files, setFiles] = React.useState<File[]>([]);
-  const [isScanning, setIsScanning] = React.useState(false);
-  const [progress, setProgress] = React.useState(0);
-  const [result, setResult] = React.useState<MockScanResult | null>(null);
-  const [activeDetector, setActiveDetector] = React.useState(0);
+  const { data: session } = useSession();
+  const [mode, setMode] = useState<InputMode>('text');
+  const [text, setText] = useState('');
+  const [url, setUrl] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const [result, setResult] = useState<ScanResultSummary | null>(null);
+  const [reportPath, setReportPath] = useState<string | null>(null);
 
-  const handleScan = async () => {
-    // Validate input
-    if (scanType === 'TEXT' && text.length < 10) {
-      toast.error('Please enter at least 10 characters of text');
-      return;
-    }
-    if (scanType === 'URL' && !url) {
-      toast.error('Please enter a URL to scan');
-      return;
-    }
-    if ((scanType === 'IMAGE' || scanType === 'AUDIO') && files.length === 0) {
-      toast.error(`Please upload a${scanType === 'AUDIO' ? 'n' : ''} ${scanType.toLowerCase()} file`);
-      return;
-    }
+  const detectText = useDetectText();
+  const detectUrl = useDetectUrl();
+  const detectImage = useDetectImage();
+  const detectAudio = useDetectAudio();
+  const analyze = useAnalyze();
 
-    setIsScanning(true);
+  const isScanning =
+    detectText.isPending || detectUrl.isPending || detectImage.isPending || detectAudio.isPending || analyze.isPending;
+
+  function reset() {
     setResult(null);
-    setProgress(0);
+    setReportPath(null);
+  }
 
-    // Animate scanning progress
-    const interval = setInterval(() => {
-      setProgress((p) => {
-        if (p >= 100) {
-          clearInterval(interval);
-          return 100;
+  async function handleScan() {
+    reset();
+    let data: ScanResultSummary | null = null;
+    let analyzed: Awaited<ReturnType<typeof analyze.mutateAsync>> | null = null;
+
+    try {
+      if (mode === 'text') {
+        if (text.trim().length < 10) {
+          toast.error('Enter at least 10 characters of text');
+          return;
         }
-        return p + 4;
+        const r = await detectText.mutateAsync({ text: text.trim() });
+        data = {
+          prediction: r.prediction,
+          riskScore: r.risk_score,
+          riskLevel: mapLevel(r.threat_level),
+          confidence: r.confidence,
+          reasons: r.reasons ?? [],
+        };
+        analyzed = await analyze.mutateAsync({ text: text.trim() });
+      } else if (mode === 'url') {
+        if (!/^https?:\/\//i.test(url.trim())) {
+          toast.error('Enter a valid URL starting with http:// or https://');
+          return;
+        }
+        const r = await detectUrl.mutateAsync({ url: url.trim() });
+        data = {
+          prediction: r.prediction,
+          riskScore: r.risk_score,
+          riskLevel: mapLevel(mapFromScore(r.risk_score)),
+          reasons: r.reasons ?? [],
+        };
+        analyzed = await analyze.mutateAsync({ url: url.trim() });
+      } else if (mode === 'image') {
+        if (!file) {
+          toast.error('Choose an image to scan');
+          return;
+        }
+        const r = await detectImage.mutateAsync(file);
+        data = {
+          prediction: r.prediction,
+          riskScore: r.risk_score,
+          riskLevel: mapLevel(r.threat_level),
+          reasons: r.reasons ?? [],
+          textPreview: r.text_preview,
+        };
+      } else if (mode === 'audio') {
+        if (!file) {
+          toast.error('Choose an audio file to scan');
+          return;
+        }
+        const r = await detectAudio.mutateAsync(file);
+        data = {
+          prediction: r.prediction,
+          riskScore: r.risk_score,
+          riskLevel: mapLevel(r.threat_level),
+          confidence: r.confidence,
+          reasons: r.reasons ?? [],
+          transcription: r.transcription,
+        };
+      }
+
+      if (data) setResult(data);
+      if (analyzed?.report) setReportPath(analyzed.report);
+
+      if (data) {
+        saveScan(mode, data, text || url || file?.name || null, isFlagged(data));
+      }
+    } catch {
+      // error toast handled in mutation onError
+    }
+  }
+
+  async function saveScan(
+    kind: string,
+    data: ScanResultSummary,
+    input: string | null,
+    isFlagged: boolean
+  ) {
+    try {
+      await fetch('/api/scans', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kind,
+          input,
+          prediction: data.prediction,
+          confidence: typeof data.confidence === 'number' ? data.confidence : null,
+          riskScore: data.riskScore,
+          threatLevel: data.riskLevel,
+          reasons: data.reasons,
+          isFlagged,
+          transcript: data.transcription || data.textPreview || null,
+        }),
       });
-    }, 80);
+    } catch {
+      // non-fatal: scan result already shown
+    }
+  }
 
-    // Simulate AI processing
-    await new Promise((resolve) => setTimeout(resolve, 2500));
-    clearInterval(interval);
-    setProgress(100);
+  function isFlagged(data: ScanResultSummary): boolean {
+    return data.riskLevel === 'HIGH' || data.riskLevel === 'CRITICAL';
+  }
 
-    // Animate detectors one by one
-    const mock = mockResults[scanType];
-    setResult(mock);
-    setIsScanning(false);
-    setActiveDetector(0);
-  };
+  function mapLevel(level: string): ScanResultSummary['riskLevel'] {
+    switch ((level ?? '').toLowerCase()) {
+      case 'critical':
+        return 'CRITICAL';
+      case 'high':
+        return 'HIGH';
+      case 'medium':
+        return 'MEDIUM';
+      default:
+        return 'LOW';
+    }
+  }
 
-  const handleReset = () => {
-    setResult(null);
-    setText('');
-    setUrl('');
-    setFiles([]);
-    setProgress(0);
-  };
+  function mapFromScore(score: number): string {
+    if (score >= 80) return 'Critical';
+    if (score >= 60) return 'High';
+    if (score >= 30) return 'Medium';
+    return 'Low';
+  }
 
-  const currentConfig = typeConfig[scanType];
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (f) setFile(f);
+  }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-display font-bold text-foreground">AI Scanner</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Scan any content for scams, phishing, and fraud across 4 detection engines.
-        </p>
+    <div className="mx-auto max-w-4xl space-y-8">
+      <div className="flex items-center gap-3">
+        <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-500 to-primary-700 text-white shadow-elegant">
+          <ShieldCheck className="h-6 w-6" />
+        </span>
+        <div>
+          <h2 className="text-heading-lg font-bold tracking-tight text-foreground">AI Scanner</h2>
+          <p className="text-sm text-muted-foreground">
+            Signed in as {session?.user?.email} — analyze anything suspicious.
+          </p>
+        </div>
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-6">
-        {/* Input side */}
-        <div className="space-y-4">
-          <Tabs value={scanType} onValueChange={(v) => setScanType(v as ScanType)}>
-            <TabsList className="w-full grid grid-cols-4">
-              {(Object.keys(typeConfig) as ScanType[]).map((type) => {
-                const config = typeConfig[type];
-                const Icon = config.icon;
-                return (
-                  <TabsTrigger key={type} value={type} className="gap-2">
-                    <Icon className="w-4 h-4" />
-                    <span className="hidden sm:inline">{config.label}</span>
-                  </TabsTrigger>
-                );
-              })}
-            </TabsList>
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-glass">
+        <div className="mb-6 grid grid-cols-4 gap-2 rounded-xl bg-muted p-1">
+          {tabs.map((tab) => (
+            <button
+              key={tab.mode}
+              onClick={() => {
+                setMode(tab.mode);
+                reset();
+              }}
+              className={cn(
+                'flex items-center justify-center gap-2 rounded-lg px-2 py-2.5 text-sm font-medium transition-colors',
+                mode === tab.mode
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <tab.icon className="h-4 w-4" />
+              <span className="hidden sm:inline">{tab.label}</span>
+            </button>
+          ))}
+        </div>
 
-            <TabsContent value="TEXT" className="mt-4">
-              <Textarea
-                label="Text Content"
-                placeholder={typeConfig.TEXT.placeholder}
-                className="min-h-[280px]"
+        <div className="space-y-5">
+          {mode === 'text' && (
+            <div>
+              <Label htmlFor="text-input">Message to analyze</Label>
+              <textarea
+                id="text-input"
+                rows={6}
+                className="w-full rounded-xl border border-input bg-background p-4 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                placeholder="Paste a suspicious SMS, email, or chat message here…"
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                helperText={`${text.length}/50000 characters`}
               />
-            </TabsContent>
-
-            <TabsContent value="URL" className="mt-4">
-              <Input
-                type="url"
-                label="URL Address"
-                placeholder={typeConfig.URL.placeholder}
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                helperText="We'll analyze the domain, redirects, SSL, and reputation"
-              />
-              <div className="mt-4 rounded-2xl bg-muted/50 p-4 space-y-2">
-                <div className="text-sm font-medium text-foreground">What we check:</div>
-                {['Domain age & reputation', 'SSL certificate validity', 'Redirect chains & final destination', 'Typo-squatting similarity', 'Threat feed indicators'].map((item) => (
-                  <div key={item} className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <ShieldCheck className="w-4 h-4 text-success-500" />
-                    {item}
-                  </div>
-                ))}
-              </div>
-            </TabsContent>
-
-            <TabsContent value="IMAGE" className="mt-4">
-              <FileUpload
-                accept={typeConfig.IMAGE.accept}
-                label="Upload screenshot of suspicious communication"
-                value={files}
-                onChange={setFiles}
-              />
-            </TabsContent>
-
-            <TabsContent value="AUDIO" className="mt-4">
-              <FileUpload
-                accept={typeConfig.AUDIO.accept}
-                label="Upload audio recording of suspicious call"
-                value={files}
-                onChange={setFiles}
-              />
-            </TabsContent>
-          </Tabs>
-
-          <div className="flex gap-3">
-            <Button
-              size="lg"
-              variant="gradient"
-              className="flex-1"
-              onClick={handleScan}
-              loading={isScanning}
-              disabled={isScanning}
-            >
-              {!isScanning && <ScanSearch className="w-5 h-5 mr-2" />}
-              {isScanning ? 'Analyzing...' : 'Scan Content'}
-            </Button>
-            <Button size="lg" variant="outline" onClick={handleReset}>
-              <RotateCcw className="w-4 h-4" />
-            </Button>
-          </div>
-
-          {isScanning && (
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Running 4 detection engines...</span>
-                <span className="font-medium">{progress}%</span>
-              </div>
-              <div className="h-2 rounded-full bg-secondary overflow-hidden">
-                <motion.div
-                  className="h-full bg-gradient-to-r from-primary-600 to-accent-600"
-                  animate={{ width: `${progress}%` }}
-                  transition={{ duration: 0.1 }}
-                />
-              </div>
-              <div className="text-xs text-muted-foreground space-y-1 pt-2">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-success-500" />
-                  Text/Content preprocessing
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-success-500" />
-                  Feature extraction
-                </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-success-500" />
-                  Model inference
-                </div>
-                <div className="flex items-center gap-2 animate-pulse">
-                  <ScanSearch className="w-3.5 h-3.5 text-primary" />
-                  Generating explanations...
-                </div>
-              </div>
+              <p className="mt-1.5 text-xs text-muted-foreground">{text.length} / 50000 characters</p>
             </div>
           )}
-        </div>
 
-        {/* Results side */}
-        <div className="min-h-[400px]">
-          <AnimatePresence mode="wait">
-            {!result && !isScanning ? (
-              <motion.div
-                key="empty"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="h-full rounded-3xl border-2 border-dashed border-muted-foreground/25 flex flex-col items-center justify-center p-8 text-center"
-              >
-                <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
-                  <ScanSearch className="w-8 h-8 text-primary" />
-                </div>
-                <h3 className="font-semibold text-foreground mb-1">Ready to Analyze</h3>
-                <p className="text-sm text-muted-foreground max-w-xs">
-                  Enter content on the left and click &quot;Scan Content&quot; to see detailed risk
-                  analysis and explanations.
+          {mode === 'url' && (
+            <div>
+              <Label htmlFor="url-input">Link to analyze</Label>
+              <Input
+                id="url-input"
+                placeholder="https://example.com/suspicious-link"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+              />
+            </div>
+          )}
+
+          {(mode === 'image' || mode === 'audio') && (
+            <div>
+              <Label>{mode === 'image' ? 'Image to analyze' : 'Audio file to analyze'}</Label>
+              <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-input bg-muted/40 px-6 py-10 text-center transition-colors hover:border-primary hover:bg-primary-50/40">
+                <UploadCloud className="mb-3 h-10 w-10 text-muted-foreground" />
+                <p className="text-sm font-medium text-foreground">
+                  {file ? file.name : mode === 'image' ? 'Click to choose an image' : 'Click to choose an audio file'}
                 </p>
-              </motion.div>
-            ) : result ? (
-              <motion.div
-                key="result"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                className="space-y-4"
-              >
-                {/* Score summary */}
-                <div className="glass rounded-3xl p-6 flex items-center gap-6">
-                  <RiskScore score={result.score} level={result.level} size="md" />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Badge
-                        variant={
-                          result.level === 'CRITICAL' || result.level === 'HIGH'
-                            ? 'destructive'
-                            : result.level === 'MEDIUM'
-                            ? 'warning'
-                            : 'success'
-                        }
-                      >
-                        {result.level} RISK
-                      </Badge>
-                      <span className="text-sm text-muted-foreground">
-                        Score: {result.score}/100
-                      </span>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {result.level === 'LOW'
-                        ? 'No significant threats detected. Content appears safe.'
-                        : result.level === 'MEDIUM'
-                        ? 'Some suspicious patterns detected. Exercise caution.'
-                        : 'High likelihood of fraudulent content. Do not share personal information.'}
-                    </p>
-                  </div>
-                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {file ? `${(file.size / 1024).toFixed(1)} KB` : 'PNG, JPG, WEBP up to 50MB'}
+                </p>
+                <input
+                  type="file"
+                  accept={mode === 'image' ? 'image/*' : 'audio/*'}
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
+              </label>
+            </div>
+          )}
 
-                {/* Detectors */}
-                <div className="glass rounded-3xl p-6">
-                  <h3 className="font-semibold text-foreground mb-4">Detection Breakdown</h3>
-                  <div className="space-y-2">
-                    {result.detectors.map((detector, index) => (
-                      <motion.button
-                        key={detector.name}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: index * 0.1 }}
-                        onClick={() => setActiveDetector(index)}
-                        className={cn(
-                          'w-full flex items-start gap-3 rounded-xl p-3 text-left transition-all',
-                          activeDetector === index ? 'bg-primary/5 ring-1 ring-primary/20' : 'hover:bg-muted/50'
-                        )}
-                      >
-                        {detector.status === 'passed' ? (
-                          <CheckCircle2 className="w-5 h-5 text-success-500 shrink-0 mt-0.5" />
-                        ) : detector.status === 'flagged' ? (
-                          <AlertTriangle className="w-5 h-5 text-warning-600 shrink-0 mt-0.5" />
-                        ) : (
-                          <ScanSearch className="w-5 h-5 text-primary shrink-0 mt-0.5 animate-pulse" />
-                        )}
-                        <div>
-                          <div className="text-sm font-medium text-foreground">{detector.name}</div>
-                          {activeDetector === index && (
-                            <motion.div
-                              initial={{ opacity: 0, height: 0 }}
-                              animate={{ opacity: 1, height: 'auto' }}
-                              className="text-xs text-muted-foreground mt-1"
-                            >
-                              {detector.detail}
-                            </motion.div>
-                          )}
-                        </div>
-                      </motion.button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Threats */}
-                <div className="glass rounded-3xl p-6">
-                  <h3 className="font-semibold text-foreground mb-3">Matched Threats</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {result.threats.map((threat) => (
-                      <Badge key={threat} variant="destructive">
-                        {threat}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div className="flex flex-wrap gap-3">
-                  <Button variant="gradient">
-                    <Download className="w-4 h-4 mr-2" />
-                    Download Report
-                  </Button>
-                  <Button variant="outline" onClick={handleReset}>
-                    <RotateCcw className="w-4 h-4 mr-2" />
-                    Scan Another
-                  </Button>
-                </div>
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
+          <Button
+            size="lg"
+            className="w-full"
+            loading={isScanning}
+            disabled={isScanning}
+            onClick={handleScan}
+          >
+            {isScanning && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {isScanning ? 'Analyzing with AI…' : 'Scan now'}
+          </Button>
         </div>
       </div>
+
+      {result && (
+        <div className="rounded-2xl border border-border bg-card p-6 shadow-glass animate-slide-up">
+          <div className="flex flex-col items-start gap-6 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">Risk score</p>
+              <div className="flex items-baseline gap-2">
+                <span className="text-display-sm font-bold tracking-tight">{result.riskScore}</span>
+                <span className="text-lg text-muted-foreground">/ 100</span>
+              </div>
+              <div className="mt-1 h-2.5 w-56 overflow-hidden rounded-full bg-muted">
+                <div
+                  className={cn(
+                    'h-full rounded-full transition-all',
+                    result.riskLevel === 'LOW' && 'bg-success-500',
+                    result.riskLevel === 'MEDIUM' && 'bg-warning-500',
+                    result.riskLevel === 'HIGH' && 'bg-orange-500',
+                    result.riskLevel === 'CRITICAL' && 'bg-destructive'
+                  )}
+                  style={{ width: `${result.riskScore}%` }}
+                />
+              </div>
+            </div>
+            <div className="text-left sm:text-right">
+              <p className="text-sm font-medium text-muted-foreground">Threat level</p>
+              <span
+                className={cn(
+                  'mt-1 inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-semibold',
+                  getRiskColor(result.riskLevel)
+                )}
+              >
+                {result.riskLevel === 'LOW' ? <CheckCircle2 className="h-4 w-4" /> : <ShieldAlert className="h-4 w-4" />}
+                {result.riskLevel}
+              </span>
+              <p className="mt-2 flex items-center justify-start gap-1.5 text-sm font-medium sm:justify-end">
+                {result.prediction === 'Malicious' ? (
+                  <XCircle className="h-4 w-4 text-destructive" />
+                ) : (
+                  <CheckCircle2 className="h-4 w-4 text-success-600" />
+                )}
+                {result.prediction}
+              </p>
+              {typeof result.confidence === 'number' && (
+                <p className="mt-1 text-xs text-muted-foreground">Model confidence: {result.confidence}%</p>
+              )}
+            </div>
+          </div>
+
+          {result.transcription && (
+            <div className="mt-6 rounded-xl bg-muted p-4">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Transcription</p>
+              <p className="text-sm text-foreground">{result.transcription}</p>
+            </div>
+          )}
+
+          {result.textPreview && (
+            <div className="mt-6 rounded-xl bg-muted p-4">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Detected text in image</p>
+              <p className="text-sm text-foreground">{result.textPreview}</p>
+            </div>
+          )}
+
+          <div className="mt-6">
+            <p className="mb-2 text-sm font-semibold text-foreground">Why this verdict</p>
+            {result.reasons.length > 0 ? (
+              <ul className="space-y-1.5">
+                {result.reasons.map((reason, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
+                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                    {reason}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-muted-foreground">No suspicious indicators detected.</p>
+            )}
+          </div>
+
+          <div className="mt-6 flex flex-wrap gap-3">
+            {reportPath && (
+              <a href={`/api/backend/report?path=${encodeURIComponent(reportPath)}`} target="_blank" rel="noreferrer">
+                <Button variant="outline">
+                  <Download className="mr-2 h-4 w-4" />
+                  Download PDF report
+                </Button>
+              </a>
+            )}
+            <Link href="/investor/history">
+              <Button variant="ghost">View history</Button>
+            </Link>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

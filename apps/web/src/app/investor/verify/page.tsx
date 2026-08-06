@@ -239,7 +239,7 @@ export default function VerifyPage() {
                 </div>
 
                 {/* Institution details */}
-                <Card>
+                <Card className="max-w-none p-0">
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="font-semibold text-foreground flex items-center gap-2">
@@ -268,7 +268,7 @@ export default function VerifyPage() {
                 </Card>
 
                 {/* Notice details */}
-                <Card>
+                <Card className="max-w-none p-0">
                   <CardContent className="p-6">
                     <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
                       <Lock className="w-4 h-4 text-primary" />

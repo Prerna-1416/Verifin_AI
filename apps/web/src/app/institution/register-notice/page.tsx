@@ -1,177 +1,127 @@
 'use client';
 
-import * as React from 'react';
-import { motion } from 'framer-motion';
-import {
-  Megaphone,
-  FileText,
-  Upload,
-  Calendar,
-  ShieldCheck,
-  CheckCircle2,
-  Save,
-} from 'lucide-react';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { FilePlus2, Loader2, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Select } from '@/components/ui/select';
-import { FileUpload } from '@/components/forms/file-upload';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
-import { toast } from 'sonner';
+import { Input, Label, Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { apiPost } from '@/lib/portal-api';
 
 export default function RegisterNoticePage() {
-  const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [form, setForm] = React.useState({
+  const router = useRouter();
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+  const [form, setForm] = useState({
     title: '',
-    type: '',
     content: '',
+    documentUrl: '',
     expiresAt: '',
   });
-  const [documents, setDocuments] = React.useState<File[]>([]);
 
-  const handleChange = (field: string) => (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
-    setForm((prev) => ({ ...prev, [field]: e.target.value }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.title || !form.content || form.content.length < 50) {
-      toast.error('Please fill in all required fields. Content must be at least 50 characters.');
-      return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await apiPost('/api/notices', {
+        title: form.title,
+        content: form.content,
+        documentUrl: form.documentUrl || undefined,
+        expiresAt: form.expiresAt ? new Date(form.expiresAt).toISOString() : null,
+      });
+      setSuccess(true);
+      setTimeout(() => router.push('/institution/registry'), 1200);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to register notice');
+    } finally {
+      setSubmitting(false);
     }
-    setIsSubmitting(true);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setIsSubmitting(false);
-    toast.success('Notice registered and cryptographically signed! QR code generated.');
-  };
+  }
+
+  if (success) {
+    return (
+      <div className="mx-auto max-w-md py-16 text-center">
+        <CheckCircle2 className="mx-auto mb-4 h-12 w-12 text-emerald-600" />
+        <h2 className="text-xl font-bold">Notice registered</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Your notice has been digitally signed.</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-display font-bold text-foreground">Register Communication</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Register official communications, sign them digitally, and generate verifiable QR codes.
-        </p>
-      </div>
-
-      <form onSubmit={handleSubmit} className="grid lg:grid-cols-2 gap-6">
-        {/* Form */}
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="w-5 h-5 text-primary" />
-                Notice Details
-              </CardTitle>
-              <CardDescription>Enter the official communication details</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+    <div className="mx-auto max-w-2xl">
+      <Card className="max-w-none">
+        <CardHeader className="text-left">
+          <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+            <FilePlus2 className="h-6 w-6" />
+          </div>
+          <CardTitle>Register a Notice</CardTitle>
+          <CardDescription>
+            Publish a signed advisory, circular, or alert. It will be verifiable via QR and listed in
+            the public registry.
+          </CardDescription>
+        </CardHeader>
+        <div>
+          <form onSubmit={onSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="title">Title</Label>
               <Input
-                label="Notice Title"
-                placeholder="e.g., Regulatory Advisory on Account Security"
+                id="title"
+                required
+                minLength={5}
+                placeholder="e.g. Advisory on unsolicited trading tips"
                 value={form.title}
-                onChange={handleChange('title')}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="content">Content</Label>
+              <textarea
+                id="content"
                 required
-              />
-              <Select
-                label="Notice Type"
-                placeholder="Select notice type"
-                value={form.type}
-                onChange={(v) => setForm((prev) => ({ ...prev, type: v }))}
-                options={[
-                  { value: 'ADVISORY', label: 'Advisory' },
-                  { value: 'CIRCULAR', label: 'Circular' },
-                  { value: 'ALERT', label: 'Alert' },
-                  { value: 'OTHER', label: 'Other' },
-                ]}
-              />
-              <Textarea
-                label="Notice Content"
-                placeholder="Enter the full content of the official communication..."
-                className="min-h-[200px]"
+                minLength={50}
+                rows={7}
+                placeholder="Full text of the notice..."
+                className="w-full rounded-xl border border-input bg-background px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
                 value={form.content}
-                onChange={handleChange('content')}
-                helperText={`${form.content.length}/10000 characters`}
-                required
+                onChange={(e) => setForm({ ...form, content: e.target.value })}
               />
-              <Input
-                type="date"
-                label="Expiry Date (Optional)"
-                value={form.expiresAt}
-                onChange={handleChange('expiresAt')}
-              />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Upload className="w-5 h-5 text-primary" />
-                Supporting Documents
-              </CardTitle>
-              <CardDescription>Upload the official document (optional)</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <FileUpload
-                accept=".pdf,.doc,.docx"
-                label="Upload supporting document"
-                value={documents}
-                onChange={setDocuments}
-              />
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Preview / Confirmation */}
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-primary" />
-                Digital Signature
-              </CardTitle>
-              <CardDescription>What happens when you register</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {[
-                { title: 'Content is hashed', desc: 'SHA-256 hash of the notice content is computed', done: true },
-                { title: 'Digitally signed', desc: 'Hashed using your institution Ed25519 private key', done: true },
-                { title: 'QR code generated', desc: 'Signature + metadata embedded in a verifiable QR code', done: true },
-                { title: 'Added to registry', desc: 'Notice appears in the public institution registry', done: true },
-              ].map((step, index) => (
-                <motion.div
-                  key={step.title}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                  className="flex items-start gap-3 p-3 rounded-xl bg-muted/50"
-                >
-                  <CheckCircle2 className="w-5 h-5 text-success-500 shrink-0 mt-0.5" />
-                  <div>
-                    <div className="text-sm font-medium text-foreground">{step.title}</div>
-                    <div className="text-xs text-muted-foreground">{step.desc}</div>
-                  </div>
-                </motion.div>
-              ))}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6 space-y-4">
-              <div className="rounded-xl bg-warning-500/10 border border-warning-500/30 p-4 text-sm text-warning-700">
-                By registering this notice, you confirm it is an official communication
-                from your institution and you have authority to sign it.
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="doc">Document URL (optional)</Label>
+                <Input
+                  id="doc"
+                  type="url"
+                  placeholder="https://..."
+                  value={form.documentUrl}
+                  onChange={(e) => setForm({ ...form, documentUrl: e.target.value })}
+                />
               </div>
-              <Button type="submit" size="lg" variant="gradient" className="w-full" loading={isSubmitting}>
-                {!isSubmitting && <Save className="w-4 h-4 mr-2" />}
-                {isSubmitting ? 'Signing & Registering...' : 'Register & Generate QR'}
-              </Button>
-            </CardContent>
-          </Card>
+              <div className="space-y-2">
+                <Label htmlFor="exp">Expires on (optional)</Label>
+                <Input
+                  id="exp"
+                  type="date"
+                  value={form.expiresAt}
+                  onChange={(e) => setForm({ ...form, expiresAt: e.target.value })}
+                />
+              </div>
+            </div>
+            {error && <p className="text-sm text-red-600">{error}</p>}
+            <Button type="submit" disabled={submitting}>
+              {submitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Signing...
+                </>
+              ) : (
+                'Register notice'
+              )}
+            </Button>
+          </form>
         </div>
-      </form>
+      </Card>
     </div>
   );
 }

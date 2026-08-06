@@ -1,161 +1,118 @@
 'use client';
 
 import { useState } from 'react';
+import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm } from 'react-hook-form';
-import { motion } from 'framer-motion';
-import { Eye, EyeOff, UserPlus, Lock, Mail, User } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { registerSchema, type RegisterInput } from '@/lib/validations';
+import { Button } from '@/components/ui/button';
+import { Card, CardDescription, CardHeader, CardTitle, Input, Label } from '@/components/ui/card';
 
 export default function RegisterPage() {
   const router = useRouter();
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<RegisterInput>({
-    resolver: zodResolver(registerSchema),
-    defaultValues: { name: '', email: '', password: '', confirmPassword: '', role: 'INVESTOR' },
+  const [loading, setLoading] = useState(false);
+  const [form, setForm] = useState({
+    name: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+    role: 'INVESTOR',
   });
 
-  const onSubmit = async (data: RegisterInput) => {
-    setIsLoading(true);
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      toast.success('Account created! Please sign in.');
-      router.push('/login');
-    } catch (error) {
-      toast.error('Failed to create account. Please try again.');
-    } finally {
-      setIsLoading(false);
+  function update(field: keyof typeof form) {
+    return (e: React.ChangeEvent<HTMLInputElement>) =>
+      setForm((f) => ({ ...f, [field]: e.target.value }));
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (form.password !== form.confirmPassword) {
+      toast.error('Passwords do not match');
+      return;
     }
-  };
+    setLoading(true);
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: form.name,
+          email: form.email,
+          password: form.password,
+          role: form.role,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || data.message || 'Registration failed');
+        return;
+      }
+      toast.success('Account created');
+      await signIn('credentials', { email: form.email, password: form.password, redirect: false });
+      router.push('/investor');
+      router.refresh();
+    } catch {
+      toast.error('Something went wrong');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      className="glass-strong rounded-3xl p-8 shadow-elegant-hover"
-    >
-      <div className="text-center mb-8">
-        <h1 className="text-2xl font-display font-bold text-foreground mb-2">Create Account</h1>
-        <p className="text-sm text-muted-foreground">
-          Join VeriFin AI to scan and verify financial communications
-        </p>
-      </div>
-
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-        <div className="relative">
-          <User className="absolute left-3 top-[38px] h-4 w-4 text-muted-foreground" />
-          <Input
-            label="Full Name"
-            placeholder="John Doe"
-            className="pl-10"
-            error={errors.name?.message}
-            {...register('name')}
-          />
-        </div>
-
-        <div className="relative">
-          <Mail className="absolute left-3 top-[38px] h-4 w-4 text-muted-foreground" />
-          <Input
-            type="email"
-            label="Email Address"
-            placeholder="you@example.com"
-            className="pl-10"
-            error={errors.email?.message}
-            {...register('email')}
-          />
-        </div>
-
-        <div className="relative">
-          <Lock className="absolute left-3 top-[38px] h-4 w-4 text-muted-foreground" />
-          <Input
-            type={showPassword ? 'text' : 'password'}
-            label="Password"
-            placeholder="At least 8 characters"
-            className="pl-10 pr-10"
-            error={errors.password?.message}
-            {...register('password')}
-          />
-          <button
-            type="button"
-            onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-3 top-[38px] text-muted-foreground hover:text-foreground transition-colors"
-            aria-label={showPassword ? 'Hide password' : 'Show password'}
-          >
-            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-          </button>
-        </div>
-
-        <div className="relative">
-          <Lock className="absolute left-3 top-[38px] h-4 w-4 text-muted-foreground" />
-          <Input
-            type={showConfirmPassword ? 'text' : 'password'}
-            label="Confirm Password"
-            placeholder="Re-enter your password"
-            className="pl-10 pr-10"
-            error={errors.confirmPassword?.message}
-            {...register('confirmPassword')}
-          />
-          <button
-            type="button"
-            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-            className="absolute right-3 top-[38px] text-muted-foreground hover:text-foreground transition-colors"
-            aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
-          >
-            {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-          </button>
-        </div>
-
+    <Card>
+      <CardHeader>
+        <CardTitle>Create your account</CardTitle>
+        <CardDescription>Start scanning text, URLs, images, and audio for fraud</CardDescription>
+      </CardHeader>
+      <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-foreground mb-1.5">Account Type</label>
-          <div className="grid grid-cols-2 gap-3">
-            <label className="cursor-pointer">
-              <input type="radio" value="INVESTOR" className="sr-only peer" defaultChecked {...register('role')} />
-              <div className="p-3 rounded-xl border border-border peer-checked:border-primary peer-checked:bg-primary/5 peer-checked:shadow-elegant text-center transition-all">
-                <div className="font-medium text-sm">Investor</div>
-                <div className="text-xs text-muted-foreground mt-1">Scan & verify</div>
-              </div>
-            </label>
-            <label className="cursor-pointer">
-              <input type="radio" value="INSTITUTION" className="sr-only peer" {...register('role')} />
-              <div className="p-3 rounded-xl border border-border peer-checked:border-primary peer-checked:bg-primary/5 peer-checked:shadow-elegant text-center transition-all">
-                <div className="font-medium text-sm">Institution</div>
-                <div className="text-xs text-muted-foreground mt-1">Register & sign</div>
-              </div>
-            </label>
+          <Label htmlFor="name">Full name</Label>
+          <Input id="name" required autoComplete="name" placeholder="Jane Investor" value={form.name} onChange={update('name')} />
+        </div>
+        <div>
+          <Label htmlFor="email">Email</Label>
+          <Input id="email" type="email" required autoComplete="email" placeholder="you@example.com" value={form.email} onChange={update('email')} />
+        </div>
+        <div>
+          <Label htmlFor="role">I am a</Label>
+          <div className="grid grid-cols-2 gap-2" role="radiogroup">
+            {[
+              { value: 'INVESTOR', label: 'Investor' },
+              { value: 'INSTITUTION', label: 'Institution' },
+            ].map((opt) => (
+              <button
+                type="button"
+                key={opt.value}
+                onClick={() => setForm((f) => ({ ...f, role: opt.value }))}
+                className={`h-11 rounded-xl border text-sm font-medium transition-colors ${
+                  form.role === opt.value
+                    ? 'border-primary bg-primary-50 text-primary'
+                    : 'border-input text-muted-foreground hover:bg-accent'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
           </div>
         </div>
-
-        <Button
-          type="submit"
-          size="lg"
-          variant="gradient"
-          className="w-full"
-          loading={isLoading}
-        >
-          {!isLoading && <UserPlus className="w-4 h-4 mr-2" />}
-          Create Account
+        <div>
+          <Label htmlFor="password">Password</Label>
+          <Input id="password" type="password" required autoComplete="new-password" placeholder="At least 8 characters" value={form.password} onChange={update('password')} />
+        </div>
+        <div>
+          <Label htmlFor="confirmPassword">Confirm password</Label>
+          <Input id="confirmPassword" type="password" required autoComplete="new-password" placeholder="Repeat password" value={form.confirmPassword} onChange={update('confirmPassword')} />
+        </div>
+        <Button type="submit" className="w-full" size="lg" loading={loading}>
+          Create account
         </Button>
       </form>
-
-      <p className="text-center text-sm text-muted-foreground mt-6">
+      <p className="mt-6 text-center text-sm text-muted-foreground">
         Already have an account?{' '}
-        <Link href="/login" className="text-primary font-medium hover:text-primary/80">
+        <Link href="/login" className="font-medium text-primary hover:underline">
           Sign in
         </Link>
       </p>
-    </motion.div>
+    </Card>
   );
 }
