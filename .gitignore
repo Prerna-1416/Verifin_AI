@@ -46,6 +46,12 @@ next-env.d.ts
 # Turbo
 .turbo
 
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+
 # Prisma
 prisma/migrations/
 
