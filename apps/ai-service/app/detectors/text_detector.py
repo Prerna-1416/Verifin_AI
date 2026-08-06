@@ -33,8 +33,8 @@ PERSONAL_INFO_REQUEST = [
 ]
 
 SUSPICIOUS_SENDERS = [
-    "no-reply", "helpdesk", "accounts@", "security@", "verify@", "support@",
-    "service@", "info@", "admin@", "customer@",
+    "no-reply", "helpdesk", "accounts@", "security@", "alert@", "billing@",
+    "verify@", "support@", "service@", "info@", "admin@", "customer@",
 ]
 
 # Sample of common scam keyword indicators
@@ -43,6 +43,62 @@ SCAM_INDICATORS = [
     "referral bonus", "signup bonus", "trading signals", "guaranteed profit",
     "secret formula", "insider tip", "sure shot", "100% return",
 ]
+
+KNOWN_BRANDS = [
+    "paypal", "netflix", "amazon", "apple", "google", "microsoft",
+    "whatsapp", "instagram", "facebook", "linkedin", "ebay",
+    "hdfc", "icici", "sbi", "axis", "kotak", "yesbank", "pnb",
+    "sebi", "rbi", "nse", "bse", "nsdl", "cdsl",
+    "zerodha", "groww", "coinbase", "binance",
+    "bankofamerica", "chase", "citibank", "hsbc",
+]
+
+
+def _levenshtein(a: str, b: str) -> int:
+    """Compute edit distance between two strings."""
+    if len(a) < len(b):
+        a, b = b, a
+    if not b:
+        return len(a)
+    previous_row = list(range(len(b) + 1))
+    for i, ca in enumerate(a):
+        current_row = [i + 1]
+        for j, cb in enumerate(b):
+            insertions = previous_row[j + 1] + 1
+            deletions = current_row[j] + 1
+            substitutions = previous_row[j] + (ca != cb)
+            current_row.append(min(insertions, deletions, substitutions))
+        previous_row = current_row
+    return previous_row[-1]
+
+
+def analyze_brand_impersonation(text: str) -> Dict[str, Any]:
+    """Flag misspelled brand names (typo-squatting) in the message text."""
+    lower = text.lower()
+    tokens = re.findall(r"[a-z][a-z0-9]{2,}", lower)
+    matches = []
+    seen = set()
+    for token in tokens:
+        if token in KNOWN_BRANDS:
+            continue
+        best_brand = None
+        best_distance = 99
+        for brand in KNOWN_BRANDS:
+            distance = _levenshtein(token, brand)
+            if distance < best_distance:
+                best_distance = distance
+                best_brand = brand
+        min_len = 4 if best_distance == 1 else 5
+        if best_brand and best_distance <= 2 and len(token) >= min_len:
+            key = (token, best_brand)
+            if key not in seen:
+                seen.add(key)
+                matches.append({"word": token, "brand": best_brand, "distance": best_distance})
+    return {
+        "score": min(40, len(matches) * 15),
+        "matches": matches[:6],
+        "count": len(matches),
+    }
 
 
 def analyze_urgency(text: str) -> Dict[str, Any]:
@@ -123,16 +179,20 @@ def detect_text(text: str) -> Dict[str, Any]:
     personal_info = analyze_personal_info_requests(text)
     links = analyze_links(text)
     sender = analyze_sender(text)
+    brand = analyze_brand_impersonation(text)
 
     # Weighted aggregation
     raw_score = (
-        urgency["score"] * 0.25
-        + suspicious["score"] * 0.25
+        urgency["score"] * 0.2
+        + suspicious["score"] * 0.2
         + personal_info["score"] * 0.3
         + links["score"] * 0.1
         + sender["score"] * 0.1
+        + brand["score"] * 0.1
     )
     score = min(100, round(raw_score, 1))
+    if brand["count"] > 0 and score < 35:
+        score = 35.0
 
     threats = []
     if personal_info["count"] > 0:
@@ -143,12 +203,15 @@ def detect_text(text: str) -> Dict[str, Any]:
         threats.append("Suspicious Content Patterns")
     if links["suspicious_count"] > 0:
         threats.append("Suspicious Links")
+    if brand["count"] > 0:
+        threats.append("Brand Impersonation")
 
     detectors = [
         {"name": "Phishing Pattern Analysis", "status": "flagged" if suspicious["count"] > 0 else "passed", "detail": f"{suspicious['count']} suspicious patterns found" if suspicious["count"] > 0 else "No suspicious patterns found"},
         {"name": "Urgency Detection", "status": "flagged" if urgency["count"] > 0 else "passed", "detail": f"{urgency['count']} urgency triggers detected" if urgency["count"] > 0 else "No urgency triggers"},
         {"name": "Personal Information Requests", "status": "flagged" if personal_info["count"] > 0 else "passed", "detail": f"{personal_info['count']} personal data requests detected" if personal_info["count"] > 0 else "No personal data requests"},
         {"name": "Sender Identity Analysis", "status": "flagged" if sender["found"] else "passed", "detail": f"Sender patterns: {', '.join(sender['found'])}" if sender["found"] else "No suspicious sender patterns"},
+        {"name": "Brand Impersonation Check", "status": "flagged" if brand["count"] > 0 else "passed", "detail": ", ".join(f"{m['word']} looks like {m['brand']}" for m in brand["matches"][:3]) if brand["matches"] else "No brand impersonation detected"},
     ]
 
     explanations = {
@@ -158,6 +221,7 @@ def detect_text(text: str) -> Dict[str, Any]:
             "personal_info": personal_info["score"],
             "links": links["score"],
             "sender": sender["score"],
+            "brand_impersonation": brand["score"],
         },
         "rule_traces": [
             f"Detected {urgency['count']} urgency phrases",
