@@ -1,6 +1,8 @@
 import type {
   AudioDetectionResult,
+  EnsembleResult,
   ImageDetectionResult,
+  PrivacyReport,
   TextDetectionResult,
   UrlDetectionResult,
 } from '@/api/types';
@@ -15,6 +17,9 @@ export interface ScanResultSummary {
   reasons: string[];
   transcription?: string;
   textPreview?: string;
+  privacy?: PrivacyReport;
+  ensemble?: EnsembleResult;
+  inputRedacted?: string;
 }
 
 export function mapThreatLevel(level: string | undefined): RiskLevel {
@@ -44,6 +49,9 @@ export function mapTextResult(result: TextDetectionResult): ScanResultSummary {
     riskLevel: mapThreatLevel(result.threat_level),
     confidence: result.confidence,
     reasons: result.reasons ?? [],
+    privacy: result.privacy,
+    ensemble: result.ensemble,
+    inputRedacted: result.input_redacted,
   };
 }
 

@@ -15,6 +15,8 @@ import {
   UploadCloud,
   CheckCircle2,
   XCircle,
+  Cpu,
+  Lock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input, Label } from '@/components/ui/card';
@@ -80,6 +82,9 @@ export default function ScannerPage() {
           riskLevel: mapLevel(r.threat_level),
           confidence: r.confidence,
           reasons: r.reasons ?? [],
+          privacy: r.privacy,
+          ensemble: r.ensemble,
+          inputRedacted: r.input_redacted,
         };
         analyzed = await analyze.mutateAsync({ text: text.trim() });
       } else if (mode === 'url') {
@@ -365,6 +370,48 @@ export default function ScannerPage() {
               <p className="text-sm text-muted-foreground">No suspicious indicators detected.</p>
             )}
           </div>
+
+          {result.ensemble && (
+            <div className="mt-6 rounded-xl border border-border p-4">
+              <p className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+                <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <Cpu className="h-3.5 w-3.5" />
+                </span>
+                Ensemble AI breakdown
+              </p>
+              <div className="grid gap-3 sm:grid-cols-3">
+                {[
+                  { label: 'Rule engines', value: `${result.ensemble.contributions.rule_engine.score}/100`, weight: `${Math.round(result.ensemble.contributions.rule_engine.weight * 100)}% weight`, verdict: result.ensemble.rule_verdict },
+                  { label: 'ML classifier', value: `${result.ensemble.contributions.ml_classifier.score}/100`, weight: `${Math.round(result.ensemble.contributions.ml_classifier.weight * 100)}% weight`, verdict: result.ensemble.ml_verdict },
+                  { label: 'Ensemble confidence', value: `${Math.round(result.ensemble.confidence * 100)}%`, weight: `consensus: ${result.ensemble.consensus}`, verdict: result.ensemble.consensus === 'agree' ? 'Agreeing signals' : 'Differing signals' },
+                ].map((c) => (
+                  <div key={c.label} className="rounded-xl bg-muted/40 p-3">
+                    <div className="text-xs text-muted-foreground">{c.label}</div>
+                    <div className="text-sm font-semibold">{c.value}</div>
+                    <div className="text-xs text-muted-foreground">{c.weight}</div>
+                    <div className="text-xs capitalize text-primary">{c.verdict}</div>
+                  </div>
+                ))}
+              </div>
+              {result.ensemble.explanation && (
+                <p className="mt-3 text-sm text-muted-foreground">{result.ensemble.explanation}</p>
+              )}
+            </div>
+          )}
+
+          {result.privacy && result.privacy.pii_count > 0 && (
+            <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+              <p className="mb-1 flex items-center gap-2 font-semibold">
+                <Lock className="h-4 w-4" /> Privacy Shield active — {result.privacy.pii_count} PII items redacted locally
+              </p>
+              <p className="text-emerald-700">
+                {result.privacy.pii_types_found.join(', ')} removed before analysis.
+                {result.inputRedacted && (
+                  <span className="mt-1 block font-mono text-xs opacity-80">Analyzed as: {result.inputRedacted}</span>
+                )}
+              </p>
+            </div>
+          )}
 
           <div className="mt-6 flex flex-wrap gap-3">
             {reportPath && (

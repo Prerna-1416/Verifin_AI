@@ -15,6 +15,10 @@ import {
   Sparkles,
   Lock,
   CheckCircle2,
+  Bot,
+  MessageSquare,
+  Puzzle,
+  EyeOff,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Section, Container, FeatureCard } from '@/components/layout/page-layout';
@@ -55,6 +59,30 @@ const features = [
     title: 'Court-ready Evidence Reports',
     description: 'Download comprehensive PDF evidence reports documenting every scan, detection, and verification for legal use.',
     href: '/investor/reports',
+  },
+  {
+    icon: <Bot className="w-6 h-6" />,
+    title: 'AI Threat-Hunter Agents',
+    description: 'Autonomous agents watch for look-alike domains and fraud networks, auto-publishing threats and notifying regulators.',
+    href: '/threat-hunter',
+  },
+  {
+    icon: <MessageSquare className="w-6 h-6" />,
+    title: 'WhatsApp Scam Scanner',
+    description: 'Paste a WhatsApp conversation and every message is risk-scored for phishing, scams, and fraudulent investment offers.',
+    href: '/whatsapp',
+  },
+  {
+    icon: <Puzzle className="w-6 h-6" />,
+    title: 'Browser Extension',
+    description: 'Right-click any message or link to scan it with VeriFin from anywhere in Chrome, with instant plain-language verdicts.',
+    href: '/extension',
+  },
+  {
+    icon: <EyeOff className="w-6 h-6" />,
+    title: 'Privacy Shield (DPDP)',
+    description: 'A PAN, Aadhaar, or OTP pasted into a scan is redacted locally before any AI runs — no personal data ever reaches a model.',
+    href: '/privacy',
   },
 ];
 

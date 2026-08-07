@@ -1,0 +1,50 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body.popup {
+  width: 340px;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 14px;
+}
+
+.brand { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.logo {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: 10px;
+  background: linear-gradient(135deg, #1e293b, #0b1120); border: 1px solid #334155;
+  font-weight: 800; color: #38bdf8; font-size: 18px;
+}
+h1 { font-size: 15px; }
+.brand p { font-size: 11px; color: #94a3b8; }
+
+.toggle { display: block; font-size: 12px; margin: 8px 0 8px; color: #cbd5e1; }
+
+textarea {
+  width: 100%; padding: 9px; border-radius: 10px;
+  border: 1px solid #334155; background: #0b1120; color: #e2e8f0; font-size: 12.5px; resize: vertical;
+}
+textarea:focus { outline: none; border-color: #38bdf8; }
+
+button#scanBtn {
+  width: 100%; margin-top: 10px; padding: 9px; border: 0; border-radius: 10px;
+  background: #0284c7; color: #fff; font-weight: 600; font-size: 13px; cursor: pointer;
+}
+button#scanBtn:disabled { opacity: 0.55; cursor: default; }
+.hint { font-size: 11px; color: #fbbf24; margin-top: 6px; min-height: 14px; }
+
+.result { margin-top: 12px; border: 1px solid #334155; border-radius: 12px; padding: 12px; background: #0b1120; }
+.score-row { display: flex; align-items: center; gap: 10px; }
+.score { font-size: 22px; font-weight: 800; }
+.score.low { color: #4ade80; } .score.medium { color: #fbbf24; }
+.score.high, .score.critical { color: #f87171; }
+.level { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: #1e293b; }
+.level.low { color: #4ade80; } .level.medium { color: #fbbf24; }
+.level.high, .level.critical { color: #f87171; }
+.explanation { font-size: 12.5px; line-height: 1.45; margin: 10px 0 6px; color: #e2e8f0; }
+.threats { list-style: none; font-size: 11.5px; color: #94a3b8; }
+.threats li::before { content: "• "; color: #f87171; }
+
+.footer { margin-top: 12px; font-size: 11px; color: #94a3b8; display: flex; align-items: center; gap: 6px; }
+.footer input { flex: 1; background: #0b1120; border: 1px solid #334155; color: #e2e8f0; padding: 5px 8px; border-radius: 8px; font-size: 11px; }
+.link { background: none; border: 0; color: #38bdf8; cursor: pointer; font-size: 11px; text-decoration: underline; }

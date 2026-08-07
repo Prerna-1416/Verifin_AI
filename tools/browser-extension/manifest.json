@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "VeriFin AI - Investor Alert",
+  "version": "0.1.0",
+  "description": "Proactively scans messages and links for AI-powered financial scams, returning a live risk score and a plain-language explanation.",
+  "permissions": ["contextMenus", "storage"],
+  "host_permissions": ["http://localhost:8001/*", "http://localhost:3000/*"],
+  "background": { "service_worker": "background.js" },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "Scan with VeriFin"
+  }
+}

@@ -7,6 +7,11 @@ from urllib.parse import urlparse
 from typing import Any, Dict, List
 from datetime import datetime, timezone
 
+try:  # auto-updating rules (agents) extend the static bases below
+    from app.rules import manager as rules_manager
+except Exception:  # pragma: no cover - detector should still run standalone
+    rules_manager = None
+
 
 KNOWN_BANKING_DOMAINS = [
     "hdfcbank.com", "icicibank.com", "sbicard.com", "axisbank.com", "kotak.com",
@@ -45,18 +50,32 @@ def _levenshtein(a: str, b: str) -> int:
     return previous_row[-1]
 
 
+def _all_known_domains() -> List[str]:
+    """Static base domains + brands auto-maintained by the threat-hunter agents."""
+    domains = list(KNOWN_BANKING_DOMAINS)
+    if rules_manager is not None:
+        domains.extend(rules_manager.brand_domains())
+    return list(dict.fromkeys(d for d in domains if d))
+
+
 def _typo_squatting_check(domain: str) -> Dict[str, Any]:
     matches = []
-    for legit in KNOWN_BANKING_DOMAINS:
+    for legit in _all_known_domains():
         dist = _levenshtein(domain, legit)
-        if dist == 1 and domain != legit:
-            matches.append({"legit": legit, "distance": dist})
-        elif dist == 2 and domain != legit:
+        if dist in (1, 2) and domain != legit:
             matches.append({"legit": legit, "distance": dist})
     return {
         "score": min(40, len(matches) * 20),
         "matches": matches[:5],
     }
+
+
+def _known_lookalike_check(domain: str) -> Dict[str, Any]:
+    """Flag domains the agents have already confirmed as malicious look-alikes."""
+    known = False
+    if rules_manager is not None:
+        known = rules_manager.is_known_lookalike(domain)
+    return {"score": 60 if known else 0, "known": known}
 
 
 def _tld_check(domain: str) -> Dict[str, Any]:
@@ -123,6 +142,7 @@ def detect_url(url: str) -> Dict[str, Any]:
         return {"score": 50, "detectors": [], "threats": ["Invalid URL"], "explanations": {"rule_traces": ["Could not parse URL"]}}
 
     typo = _typo_squatting_check(domain)
+    lookalike = _known_lookalike_check(domain)
     tld = _tld_check(domain)
     shortener = _shortener_check(url, domain)
     ssl_result = _ssl_check(url)
@@ -131,6 +151,7 @@ def detect_url(url: str) -> Dict[str, Any]:
 
     raw_score = (
         typo["score"]
+        + lookalike["score"]
         + tld["score"]
         + shortener["score"]
         + (ssl_result["score"] if not ssl_result["valid"] else 0)
@@ -140,6 +161,8 @@ def detect_url(url: str) -> Dict[str, Any]:
     score = min(100, round(raw_score, 1))
 
     threats = []
+    if lookalike["known"]:
+        threats.append("Known Malicious Domain")
     if typo["matches"]:
         threats.append("Typo-Squatting")
     if tld["tlds"]:
@@ -154,6 +177,7 @@ def detect_url(url: str) -> Dict[str, Any]:
         threats.append("SSL Verification Failed")
 
     detectors = [
+        {"name": "Threat Feed Match", "status": "flagged" if lookalike["known"] else "passed", "detail": "Domain confirmed as malicious look-alike by threat-hunter" if lookalike["known"] else "No known malicious match"},
         {"name": "Typo-Squatting Detection", "status": "flagged" if typo["matches"] else "passed", "detail": f"Similar to {typo['matches'][0]['legit']}" if typo["matches"] else "No similar known domains"},
         {"name": "Domain TLD Analysis", "status": "flagged" if tld["tlds"] else "passed", "detail": f"Suspicious TLD: {', '.join(tld['tlds'])}" if tld["tlds"] else "Domain TLD appears normal"},
         {"name": "SSL & Certificate Check", "status": "flagged" if not ssl_result["valid"] else "passed", "detail": "Valid SSL certificate" if ssl_result["valid"] else ssl_result.get("error", "No SSL")},
@@ -163,6 +187,7 @@ def detect_url(url: str) -> Dict[str, Any]:
 
     explanations = {
         "feature_importance": {
+            "known_lookalike": lookalike["score"],
             "typo_squatting": typo["score"],
             "tld": tld["score"],
             "shortener": shortener["score"],
@@ -172,6 +197,7 @@ def detect_url(url: str) -> Dict[str, Any]:
         },
         "rule_traces": [
             f"Domain: {domain}",
+            "Domain on agent-verified malicious list" if lookalike["known"] else "Not on known malicious list",
             f"Typo-squatting candidates: {', '.join(m['legit'] for m in typo['matches'])}" if typo["matches"] else "No typo-squatting detected",
         ],
     }

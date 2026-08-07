@@ -1,12 +1,38 @@
 export type ThreatLevel = 'Low' | 'Medium' | 'High' | 'Critical';
 export type Prediction = 'Safe' | 'Malicious';
 
+export interface PrivacyReport {
+  pii_redacted: Record<string, number>;
+  pii_types_found: string[];
+  pii_count: number;
+  processed_locally: boolean;
+  data_retention: string;
+  dpdp_compliant: boolean;
+}
+
+export interface EnsembleResult {
+  score: number;
+  risk_level: string;
+  confidence: number;
+  rule_verdict: string;
+  ml_verdict: string;
+  consensus: string;
+  contributions: {
+    rule_engine: { score: number; weight: number };
+    ml_classifier: { score: number; weight: number; probability_scam: number };
+  };
+  explanation: string;
+}
+
 export interface TextDetectionResult {
   prediction: Prediction;
   confidence: number;
   risk_score: number;
   threat_level: ThreatLevel;
   reasons: string[];
+  privacy?: PrivacyReport;
+  ensemble?: EnsembleResult;
+  input_redacted?: string;
 }
 
 export interface UrlDetectionResult {

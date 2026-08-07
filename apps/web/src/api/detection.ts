@@ -39,6 +39,9 @@ interface AiRawResult {
     feature_importance?: Record<string, number>;
   };
   qr_payload?: string | null;
+  privacy?: import('@/api/types').PrivacyReport;
+  ensemble?: import('@/api/types').EnsembleResult;
+  input_redacted?: string;
 }
 
 function toThreatLevel(score: number): ThreatLevel {
@@ -72,6 +75,9 @@ function mapText(raw: AiRawResult): TextDetectionResult {
     risk_score: score,
     threat_level: toThreatLevel(score),
     reasons: toReasons(raw),
+    privacy: raw.privacy,
+    ensemble: raw.ensemble,
+    input_redacted: raw.input_redacted,
   };
 }
 

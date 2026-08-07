@@ -11,6 +11,10 @@ import { usePathname } from 'next/navigation';
 
 const navLinks = [
   { href: '/', label: 'Home' },
+  { href: '/threat-hunter', label: 'Threat Hunter' },
+  { href: '/whatsapp', label: 'WhatsApp Scanner' },
+  { href: '/privacy', label: 'Privacy Shield' },
+  { href: '/extension', label: 'Extension' },
   { href: '/about', label: 'About' },
   { href: '/contact', label: 'Contact' },
 ];

@@ -1,0 +1,17 @@
+{
+  "updatedAt": "2026-08-07T00:00:00Z",
+  "brands": [
+    { "name": "SEBI", "domains": ["sebi.gov.in"], "aliases": ["sebi"] },
+    { "name": "RBI", "domains": ["rbi.org.in"], "aliases": ["rbi"] },
+    { "name": "NSE", "domains": ["nseindia.com", "nse.co.in"], "aliases": ["nse", "nseindia"] },
+    { "name": "BSE", "domains": ["bseindia.com"], "aliases": ["bse", "bseindia"] },
+    { "name": "NSDL", "domains": ["nsdl.co.in"], "aliases": ["nsdl"] },
+    { "name": "CDSL", "domains": ["cdslindia.com"], "aliases": ["cdsl", "cdslindia"] },
+    { "name": "Zerodha", "domains": ["zerodha.com"], "aliases": ["zerodha"] },
+    { "name": "Groww", "domains": ["groww.in"], "aliases": ["groww"] },
+    { "name": "Upstox", "domains": ["upstox.com"], "aliases": ["upstox"] },
+    { "name": "Angel One", "domains": ["angelone.in"], "aliases": ["angel", "angelone"] },
+    { "name": "ICICI Direct", "domains": ["icicidirect.com"], "aliases": ["icici", "icicidirect"] },
+    { "name": "HDFC Securities", "domains": ["hdfcsec.com"], "aliases": ["hdfc", "hdfcsec"] }
+  ]
+}

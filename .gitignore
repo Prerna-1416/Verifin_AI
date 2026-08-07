@@ -62,6 +62,9 @@ docker-compose.override.yml
 logs
 *.log
 
+# ML artifacts (regenerated on demand via load_or_train)
+apps/ai-service/app/ml/artifacts/
+
 # OS
 Thumbs.db
 ehthumbs.db

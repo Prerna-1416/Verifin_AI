@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>VeriFin Scan Result</title>
+  <link rel="stylesheet" href="popup.css" />
+  <style>
+    body { width: 520px; padding: 18px; margin: 0 auto; background: #0f172a; color: #e2e8f0; font-family: system-ui, sans-serif; }
+    .score-row { margin-top: 12px; }
+    .explanation { font-size: 14px; }
+    .raw { margin-top: 14px; border-top: 1px solid #334155; padding-top: 10px; font-size: 12px; color: #94a3b8; word-break: break-all; }
+  </style>
+</head>
+<body>
+  <div class="brand">
+    <span class="logo">V</span>
+    <div>
+      <h1>VeriFin AI — Scan result</h1>
+      <p>Risk assessment for the selected message / link</p>
+    </div>
+  </div>
+
+  <div class="raw" id="raw">Loading…</div>
+  <div id="result" class="result" hidden>
+    <div class="score-row">
+      <span id="score" class="score">--</span>
+      <span id="level" class="level">--</span>
+    </div>
+    <p id="explanation" class="explanation"></p>
+    <ul id="threats" class="threats"></ul>
+  </div>
+  <p id="hint" class="hint"></p>
+
+  <script src="scan.js"></script>
+</body>
+</html>

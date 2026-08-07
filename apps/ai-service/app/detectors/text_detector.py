@@ -3,6 +3,11 @@
 import re
 from typing import Any, Dict, List
 
+try:  # auto-updating rules (agents) can add protected brands to detect
+    from app.rules import manager as rules_manager
+except Exception:  # pragma: no cover
+    rules_manager = None
+
 
 URGENCY_PHRASES = [
     "urgent", "immediately", "act now", "within 24 hours", "limited time",
@@ -72,24 +77,54 @@ def _levenshtein(a: str, b: str) -> int:
     return previous_row[-1]
 
 
+def _all_brands() -> List[str]:
+    """Static brands + any added by the threat-hunter (names/aliases only)."""
+    brands = list(KNOWN_BRANDS)
+    if rules_manager is not None:
+        brands.extend(rules_manager.brand_aliases())
+        for b in rules_manager.get_brands():
+            name = b.get("name")
+            if name:
+                brands.append(name.lower())
+    return list(dict.fromkeys(b for b in brands if b))
+
+
+# Words commonly used in financial messages that are edit-distance-close to brands
+# (e.g. "balance" ~ "binance"). Never treat these as impersonation.
+COMMON_WORDS_SKIP = {
+    "balance", "account", "banking", "security", "service", "support",
+    "payment", "transfer", "statement", "customer", "investor", "brokerage",
+    "trading", "deposit", "withdraw", "manager", "advisor", "broker", "income",
+    "return", "returns", "profit", "amount", "mobile", "email", "password",
+    "message", "message", "attention", "important", "official", "limited",
+    "finance", "financial", "investment", "portfolio", "demat", "company",
+    "compliance", "transaction", "transactions", "registered", "activation",
+}
+
+
 def analyze_brand_impersonation(text: str) -> Dict[str, Any]:
     """Flag misspelled brand names (typo-squatting) in the message text."""
+    brands = _all_brands()
     lower = text.lower()
     tokens = re.findall(r"[a-z][a-z0-9]{2,}", lower)
     matches = []
     seen = set()
     for token in tokens:
-        if token in KNOWN_BRANDS:
+        if token in brands or token in COMMON_WORDS_SKIP:
             continue
         best_brand = None
         best_distance = 99
-        for brand in KNOWN_BRANDS:
+        for brand in brands:
             distance = _levenshtein(token, brand)
             if distance < best_distance:
                 best_distance = distance
                 best_brand = brand
         min_len = 4 if best_distance == 1 else 5
+        # Distance-2 matches must be long AND share the first character —
+        # otherwise common words (e.g. "balance" vs "binance") cause false alarms.
         if best_brand and best_distance <= 2 and len(token) >= min_len:
+            if best_distance == 2 and (len(token) < 6 or token[0] != best_brand[0]):
+                continue
             key = (token, best_brand)
             if key not in seen:
                 seen.add(key)

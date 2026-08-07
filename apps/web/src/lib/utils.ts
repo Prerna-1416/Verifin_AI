@@ -30,8 +30,11 @@ export function formatDate(date: Date | string, options?: Intl.DateTimeFormatOpt
   });
 }
 
-export function formatRelativeTime(date: Date | string): string {
-  const d = typeof date === 'string' ? new Date(date) : date;
+export function formatRelativeTime(date: Date | string | number): string {
+  const d =
+    typeof date === 'string' || typeof date === 'number'
+      ? new Date(date)
+      : date;
   const now = new Date();
   const diff = now.getTime() - d.getTime();
   const seconds = Math.floor(diff / 1000);

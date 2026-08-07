@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>VeriFin Investor Alert</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body class="popup">
+  <div class="brand">
+    <span class="logo">V</span>
+    <div>
+      <h1>VeriFin AI</h1>
+      <p>Investor Alert — live risk check</p>
+    </div>
+  </div>
+
+  <label class="toggle">
+    <input type="radio" name="kind" value="text" checked /> Text / message
+    <input type="radio" name="kind" value="url" style="margin-left:10px" /> URL
+  </label>
+
+  <textarea id="input" rows="4" placeholder="Paste a suspicious message or URL…"></textarea>
+
+  <button id="scanBtn">Scan now</button>
+  <p id="hint" class="hint"></p>
+
+  <div id="result" class="result" hidden>
+    <div class="score-row">
+      <span id="score" class="score">--</span>
+      <span id="level" class="level">--</span>
+    </div>
+    <p id="explanation" class="explanation"></p>
+    <ul id="threats" class="threats"></ul>
+  </div>
+
+  <div class="footer">
+    <label>API: <input id="apiBase" placeholder="http://localhost:8001" /></label>
+    <button id="save" class="link">save</button>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
