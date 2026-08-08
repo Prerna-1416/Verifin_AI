@@ -159,6 +159,74 @@ async function main() {
     }
   }
 
+  const threatCount = await prisma.threatFeed.count();
+  if (threatCount === 0) {
+    const demoThreats = [
+      {
+        title: 'Phishing campaign impersonating Zerodha KYC',
+        description:
+          'Emails/SMS claiming a KYC re-verification fee and linking to zerodhna.com. Zerodha never charges a processing fee. Report to cert-in and zero support.',
+        type: 'PHISHING',
+        severity: 'CRITICAL',
+        indicators: ['zerodhna.com', 'kyc-update.in', 'urgency manipulation'],
+        source: 'VeriFin Threat Intelligence',
+        sourceUrl: 'https://verifin.ai',
+        publishedAt: new Date(),
+      },
+      {
+        title: 'Typo-squatted groww-verify.top domain',
+        description:
+          'Lookalike domain mimicking Groww login to harvest credentials. Domain registered 6 days ago, hosted on a known bulletproof provider.',
+        type: 'SCAM',
+        severity: 'HIGH',
+        indicators: ['groww-verify.top', 'free SSL', 'newly registered'],
+        source: 'VeriFin Threat Intelligence',
+        sourceUrl: 'https://verifin.ai',
+        publishedAt: new Date(Date.now() - 86400000),
+      },
+      {
+        title: 'Fake recovery agent advisory (SEBI)',
+        description:
+          'Persons posing as SEBI recovery agents soliciting "recovery fees". SEBI does not charge fees to return funds.',
+        type: 'IMPERSONATION',
+        severity: 'HIGH',
+        indicators: ['fake recovery agent', 'upfront fee', 'SEBI impersonation'],
+        source: 'SEBI Public Advisory',
+        sourceUrl: 'https://www.sebi.gov.in',
+        publishedAt: new Date(Date.now() - 2 * 86400000),
+      },
+      {
+        title: 'OTP forwarding scam text waves',
+        description:
+          'Mass SMS urging users to forward OTP for "account verification". Banks never request OTPs by phone or SMS.',
+        type: 'FRAUD',
+        severity: 'MEDIUM',
+        indicators: ['forward OTP', 'account blocked', 'verify identity'],
+        source: 'VeriFin Threat Intelligence',
+        sourceUrl: 'https://verifin.ai',
+        publishedAt: new Date(Date.now() - 3 * 86400000),
+      },
+    ];
+    for (const t of demoThreats) {
+      await prisma.threatFeed.create({
+        data: {
+          title: t.title,
+          description: t.description,
+          type: t.type,
+          severity: t.severity,
+          indicators: t.indicators,
+          source: t.source,
+          sourceUrl: t.sourceUrl,
+          isActive: true,
+          publishedAt: t.publishedAt,
+        },
+      });
+    }
+    console.log('created demo threat feed (4)');
+  } else {
+    console.log(`skip threats: ${threatCount} already exist`);
+  }
+
   const scanCount = await prisma.scan.count();
   if (scanCount === 0) {
     const sampleScans = [
