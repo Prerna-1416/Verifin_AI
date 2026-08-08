@@ -171,9 +171,7 @@ def detect_url(url: str) -> Dict[str, Any]:
         threats.append("URL Shortener")
     if ip_result["is_ip"]:
         threats.append("IP Address URL")
-    if ssl_result.get("valid"):
-        threats.append("Phishing")
-    if not ssl_result["valid"] and ssl_result.get("error"):
+    if not ssl_result["valid"]:
         threats.append("SSL Verification Failed")
 
     detectors = [

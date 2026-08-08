@@ -21,6 +21,7 @@ from app.detectors.text_detector import detect_text
 from app.detectors.url_detector import detect_url
 from app.explainer import plain_language, risk_label
 from app.privacy.pii import redact_pii
+from app.ml.ensemble import ensemble_text
 
 logger = logging.getLogger("verifin.bot.whatsapp")
 
@@ -95,6 +96,13 @@ def analyze_message(sender: str, message: str) -> Dict[str, Any]:
             if t not in threats:
                 threats.append(t)
 
+    # Ensemble AI: fuse rule verdict with the local ML classifier (same pipeline
+    # as the scanner) so a message the ML knows is a scam isn't masked by a low rule score.
+    ensemble = ensemble_text(text_result, clean_message)
+    if ensemble["score"] > score:
+        score = float(ensemble["score"])
+        reasons.append(ensemble["explanation"])
+
     return {
         "sender": sender,
         "message": message,
@@ -104,6 +112,7 @@ def analyze_message(sender: str, message: str) -> Dict[str, Any]:
         "threats": threats,
         "reasons": reasons[:8],
         "privacy": red["found"],
+        "ensemble": ensemble,
         "explanation": plain_language({"score": score, "threats": threats, "detectors": [{"status": "flagged", "detail": r} for r in reasons]}),
     }
 

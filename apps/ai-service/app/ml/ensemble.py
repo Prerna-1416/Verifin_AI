@@ -59,6 +59,13 @@ def ensemble_text(detect_result: Dict[str, Any], text: str) -> Dict[str, Any]:
     ensemble = round(rule_weight * rule_score + ml_weight * ml_score, 1)
     ensemble = min(100, ensemble)
 
+    # Legitimate-security dampening: a genuine "do not share your OTP" message is
+    # the sender protecting you — not phishing. Pull the ensemble down too so the
+    # scanner and WhatsApp bot don't cry wolf on real bank security messages.
+    reassurance = detect_result.get("reassurance") or {}
+    if reassurance.get("count"):
+        ensemble = round(ensemble * 0.4, 1)
+
     # Confidence = agreement between rule & model verdicts.
     rule_verdict = "malicious" if rule_score >= 50 else "benign"
     ml_verdict = "malicious" if ml_score >= 50 else "benign"
@@ -89,4 +96,8 @@ def _compose_explanation(score: float, detect_result: Dict[str, Any], ml: Dict[s
         {"score": score, "threats": detect_result.get("threats") or [], "detectors": detect_result.get("detectors") or []}
     )
     consensus = "Both the rule engines and the AI model agree." if agree else "The AI model and rule engines give differing signals."
-    return f"{base} ({consensus} ML probability of scam: {ml.get('probability_scam', 0) * 100:.0f}%)"
+    note = ""
+    reassurance = detect_result.get("reassurance") or {}
+    if reassurance.get("count"):
+        note = " Message contains genuine 'protect your data' language, so the risk was adjusted down."
+    return f"{base} ({consensus} ML probability of scam: {ml.get('probability_scam', 0) * 100:.0f}%{note})"

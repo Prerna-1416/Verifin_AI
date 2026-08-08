@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { serverError } from '@/lib/api-auth';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const institutions = await prisma.institution.findMany({

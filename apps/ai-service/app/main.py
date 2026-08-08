@@ -77,6 +77,7 @@ async def detect_text(req: TextRequest):
     # Privacy Shield: redact PII first, then analyze the redacted text only.
     red = redact_pii(req.text)
     result = run_text_detector(red["redacted_text"])
+    result["risk_level"] = risk_label(result["score"])
     result["privacy"] = privacy_report(len(req.text), red["redacted_text"], red["found"])
     result["ensemble"] = ensemble_text(result, red["redacted_text"])
     result["input_redacted"] = red["redacted_text"]

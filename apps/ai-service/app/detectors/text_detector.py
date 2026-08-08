@@ -19,10 +19,37 @@ URGENCY_PHRASES = [
 SUSPICIOUS_PHRASES = [
     "verify your account", "update your details", "confirm your password",
     "click here to verify", "unusual activity", "locked account",
-    "security alert", "winning prize", "you have won", "lottery",
+    "security alert", "winning prize", "you have won", "you have been selected",
+    "you won", "you've won", "congratulations", "lucky draw", "lottery",
+    "claim your prize", "claim your reward", "claim your cashback", "claim your wallet",
+    "processing fee", "release fee", "activation fee", "registration fee",
+    "handling fee", "small fee", "nominal fee", "verification fee",
     "guaranteed returns", "risk free", "double your money", "get rich quick",
     "investment opportunity", "high returns", "no risk", "money back guarantee",
     "claim your reward", "wire transfer", "send money", "bitcoin", "crypto",
+    "won a prize", "winner", "cash prize", "gift voucher", "coupon code free",
+    "upfront amount", "security deposit", "advance payment", "pay to release",
+    "pay a small", "pay the fee", "pay now to", "fee to claim", "fee to release",
+]
+
+# Combinations that scream "advance-fee / prize scam" — strong standalone signal.
+SCAM_COMBOS = [
+    (("won", "lucky", "prize", "winner", "lottery", "draw"), ("fee", "pay", "deposit", "charge", "advance", "percentage", "tax", "processing")),
+    (("inherit", "inheritance", "refund", "reimbursement", "dividend", "compensation"), ("fee", "pay", "deposit", "charge", "tax", "insurance", "processing")),
+    (("loan", "credit card", "sanctioned"), ("processing fee", "advance", "security deposit")),
+]
+
+# Phrases real institutions use to tell you to PROTECT your data. Their presence
+# indicates the sender is trying to keep you safe (a genuine security message),
+# so we dampen the risk score instead of crying wolf.
+SECURITY_REASSURANCE_PHRASES = [
+    "do not share", "don't share", "never share", "do not disclose",
+    "never disclose", "do not reveal", "never reveal", "keep it confidential",
+    "we will never ask", "we never ask", "will not ask", "no one from",
+    "never call you asking", "if this was not you", "if not you", "ignor",
+    "ignore if not requested", "did you request this", "we only call from",
+    "bank will never ask", "do not click", "we will never contact", "don't respond",
+    "not a request", "you can safely ignore", "for your information only",
 ]
 
 FINANCIAL_KEYWORDS = [
@@ -206,6 +233,32 @@ def analyze_sender(text: str) -> Dict[str, Any]:
     }
 
 
+def analyze_scam_combos(text: str) -> Dict[str, Any]:
+    """Detect classic advance-fee / prize scams: a reward word + a fee/payment word."""
+    lower = text.lower()
+    matches = []
+    for reward_terms, fee_terms in SCAM_COMBOS:
+        hit_reward = [t for t in reward_terms if t in lower]
+        hit_fee = [t for t in fee_terms if t in lower]
+        if hit_reward and hit_fee:
+            matches.append({"reward": hit_reward, "fee": hit_fee})
+    return {
+        "score": min(60, len(matches) * 30),
+        "matches": matches[:3],
+        "count": len(matches),
+    }
+
+
+def analyze_security_reassurance(text: str) -> Dict[str, Any]:
+    """Detect genuine 'protect your data' language. Dampens the risk score."""
+    lower = text.lower()
+    found = [p for p in SECURITY_REASSURANCE_PHRASES if p in lower]
+    return {
+        "found": found,
+        "count": len(found),
+    }
+
+
 def detect_text(text: str) -> Dict[str, Any]:
     """Run all text heuristic detectors and return combined result."""
     urgency = analyze_urgency(text)
@@ -215,6 +268,8 @@ def detect_text(text: str) -> Dict[str, Any]:
     links = analyze_links(text)
     sender = analyze_sender(text)
     brand = analyze_brand_impersonation(text)
+    combos = analyze_scam_combos(text)
+    reassurance = analyze_security_reassurance(text)
 
     # Weighted aggregation
     raw_score = (
@@ -228,8 +283,20 @@ def detect_text(text: str) -> Dict[str, Any]:
     score = min(100, round(raw_score, 1))
     if brand["count"] > 0 and score < 35:
         score = 35.0
+    # A confirmed reward+fee combo is a strong scam signal on its own.
+    if combos["count"] > 0 and score < combos["score"]:
+        score = combos["score"]
+
+    # Legitimate-security dampening: "do not share your OTP" is a REAL security
+    # message, not phishing. Reduce the score so we don't cry wolf.
+    if reassurance["count"] > 0:
+        score = round(score * 0.4, 1)
+    if score < 0:
+        score = 0
 
     threats = []
+    if combos["count"] > 0:
+        threats.append("Advance-Fee / Prize Scam")
     if personal_info["count"] > 0:
         threats.append("Sensitive Information Request")
     if urgency["count"] > 0:
@@ -242,7 +309,7 @@ def detect_text(text: str) -> Dict[str, Any]:
         threats.append("Brand Impersonation")
 
     detectors = [
-        {"name": "Phishing Pattern Analysis", "status": "flagged" if suspicious["count"] > 0 else "passed", "detail": f"{suspicious['count']} suspicious patterns found" if suspicious["count"] > 0 else "No suspicious patterns found"},
+        {"name": "Phishing Pattern Analysis", "status": "flagged" if suspicious["count"] > 0 or combos["count"] > 0 else "passed", "detail": f"Advance-fee/prize scam pattern: {combos['matches'][0]['reward'][0] if combos['matches'] else ''} + {combos['matches'][0]['fee'][0] if combos['matches'] else ''}" if combos["count"] > 0 else (f"{suspicious['count']} suspicious patterns found" if suspicious["count"] > 0 else "No suspicious patterns found")},
         {"name": "Urgency Detection", "status": "flagged" if urgency["count"] > 0 else "passed", "detail": f"{urgency['count']} urgency triggers detected" if urgency["count"] > 0 else "No urgency triggers"},
         {"name": "Personal Information Requests", "status": "flagged" if personal_info["count"] > 0 else "passed", "detail": f"{personal_info['count']} personal data requests detected" if personal_info["count"] > 0 else "No personal data requests"},
         {"name": "Sender Identity Analysis", "status": "flagged" if sender["found"] else "passed", "detail": f"Sender patterns: {', '.join(sender['found'])}" if sender["found"] else "No suspicious sender patterns"},
@@ -257,11 +324,13 @@ def detect_text(text: str) -> Dict[str, Any]:
             "links": links["score"],
             "sender": sender["score"],
             "brand_impersonation": brand["score"],
+            "advance_fee_scam": combos["score"],
         },
         "rule_traces": [
             f"Detected {urgency['count']} urgency phrases",
             f"Detected {suspicious['count']} suspicious phrases",
             f"Detected {personal_info['count']} personal info requests",
+            f"Detected {combos['count']} advance-fee/prize scam combos",
         ],
     }
 
@@ -270,4 +339,5 @@ def detect_text(text: str) -> Dict[str, Any]:
         "detectors": detectors,
         "threats": threats,
         "explanations": explanations,
+        "reassurance": reassurance,
     }

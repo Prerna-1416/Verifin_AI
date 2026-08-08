@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server';
 const AI_URL = process.env.AI_SERVICE_URL || 'http://localhost:8001';
 const AI_KEY = process.env.AI_SERVICE_API_KEY || 'verifin-ai-service-key';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const res = await fetch(`${AI_URL}/privacy/policy`, {
