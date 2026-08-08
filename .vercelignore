@@ -1,0 +1,33 @@
+# Dependencies & build output — never upload
+node_modules
+.next
+out
+build
+dist
+coverage
+.turbo
+.vercel
+
+# Local env secrets
+.env
+.env.local
+.env.*.local
+.env.production
+*.pem
+
+# Python side (not part of the web deploy)
+venv
+.venv
+__pycache__
+*.pyc
+apps/api
+apps/ai-service
+tools
+uploads
+apps/ai-service/app/ml/artifacts
+
+# Misc
+.git
+.gitignore
+Thumbs.db
+*.log
