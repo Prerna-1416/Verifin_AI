@@ -92,7 +92,7 @@ async function upsertUser(u) {
 async function main() {
   const admin = await upsertUser(users[2]);
   const investor = await upsertUser(users[0]);
-  await upsertUser(users[1]);
+  const instUser = await upsertUser(users[1]);
 
   for (const inst of demoInstitutions) {
     const existing = await prisma.institution.findUnique({
@@ -228,6 +228,7 @@ async function main() {
   }
 
   const scanCount = await prisma.scan.count();
+  let createdScans = [];
   if (scanCount === 0) {
     const sampleScans = [
       {
@@ -256,7 +257,7 @@ async function main() {
       },
     ];
     for (const s of sampleScans) {
-      await prisma.scan.create({
+      const created = await prisma.scan.create({
         data: {
           userId: investor.id,
           inputType: s.inputType,
@@ -270,10 +271,103 @@ async function main() {
           createdAt: new Date(),
         },
       });
+      createdScans.push(created);
     }
     console.log('created demo scans (3)');
   } else {
+    createdScans = await prisma.scan.findMany({ take: 3, orderBy: { createdAt: 'asc' } });
     console.log(`skip scans: ${scanCount} already exist`);
+  }
+
+  const institutions = await prisma.institution.findMany({ orderBy: { createdAt: 'asc' } });
+  const notices = await prisma.notice.findMany({ orderBy: { createdAt: 'asc' } });
+  const firstNotice = notices[0];
+  const firstInstitution = institutions[0];
+
+  const membershipCount = await prisma.userInstitution.count();
+  if (membershipCount === 0 && institutions.length > 0) {
+    await prisma.userInstitution.createMany({
+      data: institutions.map((inst) => ({
+        userId: instUser.id,
+        institutionId: inst.id,
+        role: 'INSTITUTION',
+        joinedAt: new Date(),
+      })),
+    });
+    console.log(`created user-institution memberships (${institutions.length})`);
+  } else if (membershipCount > 0) {
+    console.log(`skip memberships: ${membershipCount} already exist`);
+  }
+
+  const reportCount = await prisma.report.count();
+  if (reportCount === 0 && createdScans.length > 0) {
+    await prisma.report.create({
+      data: {
+        scanId: createdScans[0].id,
+        userId: investor.id,
+        pdfUrl: `/reports/scan-${createdScans[0].id}.pdf`,
+        generatedAt: new Date(),
+      },
+    });
+    console.log('created demo report (1)');
+  } else {
+    console.log(`skip reports: ${reportCount} already exist`);
+  }
+
+  const flaggedCount = await prisma.flaggedContent.count();
+  if (flaggedCount === 0 && createdScans.length > 1) {
+    await prisma.flaggedContent.create({
+      data: {
+        scanId: createdScans[1].id,
+        reason: 'High-risk typo-squatted domain flagged by detector',
+        reviewedBy: admin.id,
+        reviewedAt: new Date(),
+        action: 'CONFIRMED_THREAT',
+      },
+    });
+    console.log('created demo flagged content (1)');
+  } else {
+    console.log(`skip flagged content: ${flaggedCount} already exist`);
+  }
+
+  const sessionCount = await prisma.session.count();
+  if (sessionCount === 0) {
+    await prisma.session.create({
+      data: {
+        userId: investor.id,
+        token: `demo-session-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+        expiresAt: new Date(Date.now() + 30 * 86400000),
+      },
+    });
+    console.log('created demo session (1)');
+  } else {
+    console.log(`skip sessions: ${sessionCount} already exist`);
+  }
+
+  const auditCount = await prisma.auditLog.count();
+  if (auditCount === 0) {
+    const auditEntries = [
+      { action: 'USER_LOGIN', entity: 'User', entityId: investor.id, metadata: { method: 'credentials' } },
+      { action: 'INSTITUTION_CREATED', entity: 'Institution', entityId: firstInstitution?.id ?? '', metadata: { name: firstInstitution?.name ?? '' } },
+      { action: 'NOTICE_PUBLISHED', entity: 'Notice', entityId: firstNotice?.id ?? '', metadata: { title: firstNotice?.title ?? '' } },
+      { action: 'SCAN_COMPLETED', entity: 'Scan', entityId: createdScans[0]?.id ?? '', metadata: { riskLevel: 'CRITICAL' } },
+      { action: 'REPORT_GENERATED', entity: 'Report', entityId: '', metadata: {} },
+    ];
+    await prisma.auditLog.createMany({
+      data: auditEntries.map((a, i) => ({
+        userId: a.action === 'INSTITUTION_CREATED' || a.action === 'NOTICE_PUBLISHED' ? admin.id : investor.id,
+        action: a.action,
+        entity: a.entity,
+        entityId: a.entityId,
+        metadata: a.metadata,
+        ipAddress: '203.0.113.10',
+        userAgent: 'VeriFin-Demo-Seed/1.0',
+        createdAt: new Date(Date.now() - i * 60000),
+      })),
+    });
+    console.log(`created demo audit logs (${auditEntries.length})`);
+  } else {
+    console.log(`skip audit logs: ${auditCount} already exist`);
   }
 
   console.log('\nSeed complete.');
