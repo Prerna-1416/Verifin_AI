@@ -166,15 +166,23 @@ mongod --port 27018 --dbpath <data-dir>
 > **Never share your local MongoDB data folder between machines.** The demo accounts
 > live in the local DB, so a fresh machine gets an empty database until you seed it (next step).
 
-### 3b. Seed demo users (required on a fresh machine)
+### 3b. Seed demo data (required on a fresh machine)
 
 A brand-new checkout has an empty database, so sign-in has no users and appears to do nothing. Create
-the demo accounts (idempotent — safe to re-run):
+the demo accounts **and** demo content (idempotent — safe to re-run):
 
 ```bash
 cd apps/web
 node scripts/seed.mjs            # creates test@ / inst@ / admin@ (see Demo Accounts)
+node scripts/seed-demo.mjs       # verified demo institutions (Zerodha, HDFC Sec, SEBI)
+                                 # + Ed25519-signed notices + QR records + sample scans
 ```
+
+`seed-demo.mjs` also fills the **Verified Institution Registry** (`/registry`) and gives you real
+notices you can verify at `/verify/<noticeId>` — the script prints the QR notice IDs to use.
+
+> **Prisma on MongoDB needs a replica set.** Start `mongod` with `--replSet rs0` (single-node is
+> fine). The demo data scripts use Prisma, which requires transactions.
 
 To reset to empty, just point `DATABASE_URL` at a fresh Mongo data dir.
 
