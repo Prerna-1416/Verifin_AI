@@ -1,6 +1,7 @@
 # Render Blueprint — deploys the two Python services for VeriFin AI.
-# Connect your GitHub repo to Render, then "New -> Blueprint" and pick this file.
-# Both services are Docker-based so the OpenCV/zbar system libs are installed.
+# Connect your GitHub repo to Render, then "New Blueprint" and pick this file.
+# Both services use Render's native Python runtime (free tier) — no Docker
+# required. The image/QR detectors degrade gracefully without OpenCV/zbar.
 #
 # Required external resources (set in the Dashboard, not here):
 #   - MongoDB Atlas cluster (M0 free tier is a replica set => Prisma works)
@@ -10,9 +11,10 @@
 services:
   - type: web
     name: verifin-ai-api
-    runtime: docker
+    runtime: python
     rootDir: apps/api
-    dockerfilePath: Dockerfile
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
       - key: MONGO_URI
@@ -24,7 +26,7 @@ services:
       - key: AI_SERVICE_URL
         sync: false            # e.g. https://verifin-ai-service.onrender.com
       - key: AI_SERVICE_API_KEY
-        sync: false            # must match the AVERIFY AI service key
+        sync: false            # must match the VeriFin AI service key
       - key: JWT_SECRET
         sync: false
       - key: CORS_ORIGINS
@@ -32,9 +34,10 @@ services:
 
   - type: web
     name: verifin-ai-service
-    runtime: docker
+    runtime: python
     rootDir: apps/ai-service
-    dockerfilePath: Dockerfile
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
       - key: AI_SERVICE_API_KEY
