@@ -32,7 +32,19 @@ function LoginForm() {
       }
       toast.success('Signed in successfully');
       const callbackUrl = searchParams.get('callbackUrl');
-      router.push(callbackUrl && callbackUrl.startsWith('/') ? callbackUrl : '/investor');
+      if (callbackUrl && callbackUrl.startsWith('/')) {
+        router.push(callbackUrl);
+        router.refresh();
+        return;
+      }
+      // Route by role so admins land in the Admin Console, not the investor portal.
+      try {
+        const session = await fetch('/api/auth/session', { cache: 'no-store' }).then((r) => r.json());
+        const role = session?.user?.role;
+        router.push(role === 'SUPER_ADMIN' || role === 'ADMIN' ? '/admin' : role === 'INSTITUTION' ? '/institution' : '/investor');
+      } catch {
+        router.push('/investor');
+      }
       router.refresh();
     } finally {
       setLoading(false);

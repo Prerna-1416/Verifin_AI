@@ -59,11 +59,31 @@ def _all_known_domains() -> List[str]:
 
 
 def _typo_squatting_check(domain: str) -> Dict[str, Any]:
+    """Detect look-alike domains, including compound ones like `paypall-support.com`.
+
+    We compare the whole domain (catches `zerodhna.com`) AND each of its
+    sub-domain tokens against each known brand (catches `paypall-support.com`,
+    where `paypall` is a 1-edit variant of `paypal`).
+    """
     matches = []
+    tokens = [t for t in re.split(r"[.\-]", domain) if t]
     for legit in _all_known_domains():
+        if domain == legit:
+            continue
+        if domain in KNOWN_BANKING_DOMAINS:
+            continue
         dist = _levenshtein(domain, legit)
-        if dist in (1, 2) and domain != legit:
+        if dist in (1, 2):
             matches.append({"legit": legit, "distance": dist})
+            continue
+        legit_brand = legit.split(".")[0]
+        for token in tokens:
+            if token == legit_brand:
+                continue
+            tdist = _levenshtein(token, legit_brand)
+            if 0 < tdist <= 2:
+                matches.append({"legit": legit, "distance": tdist})
+                break
     return {
         "score": min(40, len(matches) * 20),
         "matches": matches[:5],
@@ -87,7 +107,9 @@ def _tld_check(domain: str) -> Dict[str, Any]:
 
 
 def _shortener_check(url: str, domain: str) -> Dict[str, Any]:
-    is_shortened = any(s in domain for s in URL_SHORTENERS)
+    # Match the domain as a shortener host (exact or subdomain), never a
+    # substring — `t.co` must not match `paypall-support.com`.
+    is_shortened = any(domain == s or domain.endswith(f".{s}") for s in URL_SHORTENERS)
     return {
         "score": 25 if is_shortened else 0,
         "is_shortened": is_shortened,

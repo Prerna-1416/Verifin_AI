@@ -87,6 +87,7 @@ async def detect_text(req: TextRequest):
 @app.post("/detect/url")
 async def detect_url(req: URLRequest):
     result = run_url_detector(req.url)
+    result["risk_level"] = risk_label(result["score"])
     return {"success": True, **result}
 
 

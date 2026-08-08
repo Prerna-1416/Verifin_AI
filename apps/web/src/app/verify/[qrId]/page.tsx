@@ -12,7 +12,6 @@ import {
   Clock,
 } from 'lucide-react';
 import { PortalCard, Badge } from '@/components/ui/portal-card';
-import { apiGet } from '@/lib/portal-api';
 import { formatDate } from '@/lib/utils';
 
 type VerifyData = {
@@ -50,8 +49,18 @@ export default function VerifyPage() {
       setLoading(false);
       return;
     }
-    apiGet<VerifyData>(`/api/verify/${params.qrId}`)
-      .then(setResult)
+    // The verify API returns `{ success, status, data }` — read it raw so the
+    // wrapper's `status` and `data` remain intact (apiGet unwraps them).
+    fetch(`/api/verify/${params.qrId}`, { cache: 'no-store' })
+      .then(async (res) => {
+        const json = await res.json();
+        if (!res.ok || !json.success) throw new Error(json.error || `Request failed (${res.status})`);
+        const result: VerifyData = {
+          status: json.status as VerifyData['status'],
+          data: json.data ?? null,
+        };
+        setResult(result);
+      })
       .catch((err) => setError(err instanceof Error ? err.message : 'Verification failed'))
       .finally(() => setLoading(false));
   }, [params?.qrId]);
