@@ -19,4 +19,5 @@ COPY . .
 
 EXPOSE 8001
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001"]
+# Render injects $PORT; fall back to 8001 locally/other hosts.
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8001}"]

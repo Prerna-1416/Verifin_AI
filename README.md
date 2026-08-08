@@ -371,6 +371,54 @@ detector engine as the scanner.
     `GET /bot/whatsapp/status` shows which mode is active (requests are never silently dropped; if
     undeployed it reports `offline-analyzer-only`).
 
+## Deployment
+
+Production topology: **Vercel** (Next.js web app) + **Render** (both FastAPI services) + **MongoDB Atlas** (single cluster for Prisma + Motor).
+
+> GitHub Pages is static-only, so it cannot run this SSR/ML stack. The files below wire up
+> Vercel + Render + Atlas instead.
+
+### 1. MongoDB Atlas
+1. Create a free cluster (M0) — an Atlas cluster is a replica set, which Prisma requires.
+2. In *Database Access*: create a user + strong password.
+3. In *Database*: create database `verifin_ai`.
+4. Copy the connection string: `mongodb+srv://USER:PASS@CLUSTER.mongodb.net/verifin_ai?retryWrites=true&w=majority`.
+
+### 2. Render — both FastAPI services
+1. Push this repo to GitHub.
+2. Render → **New → Blueprint**, select the repo. It reads `render.yaml` and provisions
+   `verifin-ai-api` (port 8000) and `verifin-ai-service` (port 8001) from their Dockerfiles.
+3. Fill in the `sync: false` env vars in the dashboard for each service (see
+   `apps/api/.env.production.example` and `apps/ai-service/.env.production.example`).
+4. Note the two service URLs, e.g. `https://verifin-ai-api.onrender.com` and
+   `https://verifin-ai-service.onrender.com`. `PORT` is injected automatically by Render.
+
+### 3. Vercel — Next.js web app
+1. Vercel → **New Project**, import the same repo (framework auto-detected: Next.js).
+2. Project Settings → set **Root Directory** to `apps/web`.
+3. Add the environment variables from `apps/web/.env.production.example`:
+   - `DATABASE_URL` (Atlas string), `NEXTAUTH_SECRET`, `JWT_SECRET`, `NEXTAUTH_URL`
+   - `API_URL=https://verifin-ai-api.onrender.com`, `AI_SERVICE_URL=https://verifin-ai-service.onrender.com`
+   - `NEXT_PUBLIC_API_URL=/api/backend`, `AI_SERVICE_API_KEY`, `AGENT_INTERNAL_KEY`
+4. Deploy. The Next.js rewrites in `next.config.js` proxy `/api/backend/*` → Render API and
+   `/api/ai/*` → Render AI service.
+
+### 4. Seed production data
+After the API service is live (and once `DATABASE_URL` is reachable from your machine):
+
+```bash
+cd apps/web
+node scripts/seed-demo.mjs   # seeds registry, notices, QR codes, admin + investor users
+```
+
+### 5. CI/CD
+`.github/workflows/deploy.yml` builds + typechecks the web app, then deploys to Vercel on every
+push to `main`. It needs these repo secrets:
+`VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `VERCEL_TOKEN` (create a token in Vercel →
+Settings → Tokens).
+
+Render re-deploys automatically on push because the Blueprint is tied to the GitHub repo.
+
 ## Roadmap
 
 - PDF evidence report generation for scans

@@ -1,0 +1,72 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build & verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.4.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        working-directory: apps/web
+        run: pnpm db:generate
+
+      - name: Typecheck web
+        working-directory: apps/web
+        run: pnpm typecheck
+
+      - name: Build web
+        working-directory: apps/web
+        run: pnpm build
+
+      - name: Lint web
+        working-directory: apps/web
+        run: pnpm lint
+
+  deploy-vercel:
+    name: Deploy web to Vercel
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.4.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install Vercel CLI
+        run: pnpm dlx vercel@latest pull --yes --environment=production --token=$VERCEL_TOKEN
+
+      - name: Deploy to Vercel (production)
+        working-directory: apps/web
+        run: pnpm dlx vercel@latest deploy --prod --yes --token=$VERCEL_TOKEN

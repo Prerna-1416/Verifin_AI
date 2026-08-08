@@ -1,4 +1,5 @@
 import asyncio
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile, Depends, Header, Query, status
@@ -19,7 +20,7 @@ from app.privacy.pii import redact_pii, privacy_report
 from app.ml.ensemble import ensemble_text
 from app.ml.classifier import model_card as ml_model_card
 
-API_KEY = "verifin-ai-service-key"
+API_KEY = os.getenv("AI_SERVICE_API_KEY", "verifin-ai-service-key")
 
 _agent_task: Optional[asyncio.Task] = None
 

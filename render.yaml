@@ -1,0 +1,51 @@
+# Render Blueprint — deploys the two Python services for VeriFin AI.
+# Connect your GitHub repo to Render, then "New -> Blueprint" and pick this file.
+# Both services are Docker-based so the OpenCV/zbar system libs are installed.
+#
+# Required external resources (set in the Dashboard, not here):
+#   - MongoDB Atlas cluster (M0 free tier is a replica set => Prisma works)
+#     DATABASE_URL (web/Prisma) + MONGO_URI (api) both point at it.
+#   - The Vercel Next.js app must be deployed first so you can set WEB_URL here.
+
+services:
+  - type: web
+    name: verifin-ai-api
+    runtime: docker
+    rootDir: apps/api
+    dockerfilePath: Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: MONGO_URI
+        sync: false            # paste your MongoDB Atlas connection string
+      - key: DATABASE_NAME
+        value: verifin_ai
+      - key: DEBUG
+        value: "false"
+      - key: AI_SERVICE_URL
+        sync: false            # e.g. https://verifin-ai-service.onrender.com
+      - key: AI_SERVICE_API_KEY
+        sync: false            # must match the AVERIFY AI service key
+      - key: JWT_SECRET
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false            # JSON array, e.g. ["https://verifin-ai.vercel.app"]
+
+  - type: web
+    name: verifin-ai-service
+    runtime: docker
+    rootDir: apps/ai-service
+    dockerfilePath: Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: AI_SERVICE_API_KEY
+        sync: false
+      - key: WEB_URL
+        sync: false            # your Vercel app URL, e.g. https://verifin-ai.vercel.app
+      - key: AGENT_INTERNAL_KEY
+        sync: false            # must match AGENT_INTERNAL_KEY in the web app
+      - key: AGENT_ENABLED
+        value: "true"
+      - key: AGENT_DEMO
+        value: "true"
+      - key: AGENT_INTERVAL_SECONDS
+        value: "600"
