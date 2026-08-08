@@ -127,9 +127,13 @@ async def detect_explain(req: TextRequest):
     """Scan text and return a plain-language explanation (used by the extension)."""
     red = redact_pii(req.text)
     result = run_text_detector(red["redacted_text"])
-    result["explanation"] = plain_language(result)
-    result["risk_level"] = risk_label(result["score"])
-    result["ensemble"] = ensemble_text(result, red["redacted_text"])
+    ensemble = ensemble_text(result, red["redacted_text"])
+    result["ensemble"] = ensemble
+    # Lead with the ensemble verdict so the popup shows the full AI signal,
+    # not just the heuristics — the ML confidence is the interesting number.
+    result["score"] = ensemble["score"]
+    result["risk_level"] = ensemble["risk_level"]
+    result["explanation"] = ensemble["explanation"]
     result["privacy"] = privacy_report(len(req.text), red["redacted_text"], red["found"])
     result["input_redacted"] = red["redacted_text"]
     return {"success": True, **result}
